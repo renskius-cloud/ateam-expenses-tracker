@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- BRIGHT FROSTED GLASS THEME INJECTION ---
+# --- BRIGHT FROSTED GLASS THEME & HIGH-CONTRAST CSS INJECTION ---
 bg_img_url = "https://lh3.googleusercontent.com/d/1qDaExmKTO9-0ZBF5thIM2EA0eTrSd6Zd"
 
 st.markdown(f"""
@@ -24,30 +24,40 @@ st.markdown(f"""
         background-attachment: fixed;
     }}
 
-    /* Global Dark Text Color for High Contrast on Light Glass */
+    /* Force All Text, Headings, and Captions to High-Contrast Dark Colors */
     .stApp, .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6 {{
         color: #0F172A !important;
     }}
 
+    /* FIX: Force Sub-Caption Texts under Buttons to be Bold & Dark */
+    div[data-testid="stCaptionContainer"] p, 
+    div[data-testid="stCaptionContainer"] span,
+    .stCaption {{
+        color: #0F172A !important;
+        font-weight: 700 !important;
+        font-size: 0.9rem !important;
+        text-shadow: 0px 0px 4px rgba(255, 255, 255, 0.9) !important;
+    }}
+
     /* Frosted White Glass Sidebar */
     [data-testid="stSidebar"] {{
-        background-color: rgba(255, 255, 255, 0.45) !important;
+        background-color: rgba(255, 255, 255, 0.55) !important;
         backdrop-filter: blur(16px) saturate(180%) !important;
         -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
         border-right: 1px solid rgba(255, 255, 255, 0.4) !important;
     }}
 
-    /* Frosted White Containers, Forms, Tables, and Expanders */
+    /* Frosted White Containers, Forms, and Expanders */
     div[data-testid="stDataFrame"], 
     div[data-testid="stForm"], 
     .stAlert, 
     div[data-testid="stExpander"] {{
-        background-color: rgba(255, 255, 255, 0.78) !important;
+        background-color: rgba(255, 255, 255, 0.85) !important;
         backdrop-filter: blur(14px) !important;
         -webkit-backdrop-filter: blur(14px) !important;
         border-radius: 12px !important;
-        border: 1px solid rgba(255, 255, 255, 0.6) !important;
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.12) !important;
+        border: 1px solid rgba(255, 255, 255, 0.7) !important;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15) !important;
         padding: 12px !important;
     }}
 
