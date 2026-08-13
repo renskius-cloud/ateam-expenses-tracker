@@ -10,6 +10,21 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- BACKGROUND IMAGE INJECTION ---
+bg_img_url = "https://lh3.googleusercontent.com/d/1qDaExmKTO9-0ZBF5thIM2EA0eTrSd6Zd"
+
+st.markdown(f"""
+    <style>
+    .stApp {{
+        background: linear-gradient(rgba(14, 17, 23, 0.78), rgba(14, 17, 23, 0.78)), url("{bg_img_url}");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }}
+    </style>
+""", unsafe_allow_html=True)
+
 # 2. GOOGLE SHEETS CONNECTION
 conn = st.connection("gsheets", type=GSheetsConnection)
 
@@ -262,7 +277,7 @@ if page == "💳 Credit Cards":
                     in_period_txs.append(match_tx)
             filtered_tx = pd.concat(in_period_txs, ignore_index=True) if in_period_txs else pd.DataFrame()
 
-        # Filter & Annotate Installments with Progress
+        # Filter & Annotate Installments with Progress (Auto-Hiding Completed Items)
         filtered_inst = pd.DataFrame()
         if not inst_df.empty and "Card" in inst_df.columns:
             inst_copy = inst_df[inst_df["Card"].astype(str).str.strip().isin(payout_cards)].copy()
