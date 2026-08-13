@@ -337,7 +337,7 @@ if page == "💳 Credit Cards":
             
         sub_a, sub_b, sub_c = st.columns(3)
         sub_a.caption(f"🧾 **Daily:** {fmt_peso(tot_15th_tx)}")
-        sub_b.caption(f"🏠 **Ours Inst:** {fmt_peso(tot_15th_inst_ours)}")
+        sub_b.caption(f"🏠 **A-Team Inst:** {fmt_peso(tot_15th_inst_ours)}")
         sub_c.caption(f"🤝 **Tatay/Kuya:** {fmt_peso(tot_15th_inst_others)}")
 
     with c2:
@@ -346,7 +346,7 @@ if page == "💳 Credit Cards":
             
         sub_d, sub_e, sub_f = st.columns(3)
         sub_d.caption(f"🧾 **Daily:** {fmt_peso(tot_30th_tx)}")
-        sub_e.caption(f"🏠 **Ours Inst:** {fmt_peso(tot_30th_inst_ours)}")
+        sub_e.caption(f"🏠 **A-Team Inst:** {fmt_peso(tot_30th_inst_ours)}")
         sub_f.caption(f"🤝 **Tatay/Kuya:** {fmt_peso(tot_30th_inst_others)}")
 
     with c3:
