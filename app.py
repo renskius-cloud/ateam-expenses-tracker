@@ -77,8 +77,12 @@ if page == "💳 Credit Cards":
 
     # --- STATEMENT WINDOW & DASHBOARD COMPUTATIONS ---
     dashboard_rows = []
-    tot_15th = 0.0
-    tot_30th = 0.0
+    
+    tot_15th_ours = 0.0
+    tot_15th_others = 0.0
+    
+    tot_30th_ours = 0.0
+    tot_30th_others = 0.0
 
     for _, card in cards_df.iterrows():
         card_name = card.get("Card Name", "")
@@ -102,13 +106,22 @@ if page == "💳 Credit Cards":
 
         stmt_range_str = f"{stmt_start_date.strftime('%b %d')} – {stmt_end_date.strftime('%b %d')}"
 
-        # 1. Sum Installments for this card
-        inst_sum = 0.0
+        # 1. Sum Installments split by Owner (Ours vs Tatay/Kuya Jaypard)
+        inst_ours = 0.0
+        inst_others = 0.0
+        
         if not inst_df.empty and "Card" in inst_df.columns:
             card_insts = inst_df[inst_df["Card"].astype(str).str.strip() == card_name.strip()]
-            inst_sum = card_insts["Monthly_Payment"].apply(clean_num).sum()
+            for _, row in card_insts.iterrows():
+                m_amt = clean_num(row.get("Monthly_Payment", 0))
+                owner = str(row.get("Owner", "")).strip().lower()
+                
+                if owner in ["tatay", "kuya jaypard"]:
+                    inst_others += m_amt
+                else:
+                    inst_ours += m_amt
 
-        # 2. Sum Daily Transactions in Statement Window for this card
+        # 2. Sum Daily Transactions in Statement Window (All Daily Txs are Ours)
         tx_sum = 0.0
         if not tx_df.empty and "Card" in tx_df.columns:
             card_txs = tx_df[tx_df["Card"].astype(str).str.strip() == card_name.strip()].copy()
@@ -120,7 +133,17 @@ if page == "💳 Credit Cards":
                 ]
                 tx_sum = in_range_tx["Amount"].apply(clean_num).sum()
 
-        total_card_due = inst_sum + tx_sum
+        card_total_ours = tx_sum + inst_ours
+        card_total_others = inst_others
+        total_card_due = card_total_ours + card_total_others
+
+        # Accumulate period totals
+        if "15" in pay_period:
+            tot_15th_ours += card_total_ours
+            tot_15th_others += card_total_others
+        else:
+            tot_30th_ours += card_total_ours
+            tot_30th_others += card_total_others
 
         # Check Payment Status
         status = "Unpaid"
@@ -136,11 +159,6 @@ if page == "💳 Credit Cards":
         if total_card_due == 0:
             status = "No Due"
 
-        if "15" in pay_period:
-            tot_15th += total_card_due
-        else:
-            tot_30th += total_card_due
-
         dashboard_rows.append({
             "Credit Card": card_name,
             "Pay Period": pay_period,
@@ -151,20 +169,32 @@ if page == "💳 Credit Cards":
 
     display_dashboard_df = pd.DataFrame(dashboard_rows)
 
-    # --- CLICKABLE PAYOUT DUES BUTTONS ---
+    tot_15th_grand = tot_15th_ours + tot_15th_others
+    tot_30th_grand = tot_30th_ours + tot_30th_others
+
+    # --- CLICKABLE PAYOUT DUES BUTTONS WITH SPLIT METRICS ---
     st.markdown("#### 🗓️ Payout Dues Summary *(Click to view details)*")
     
     if "selected_payout" not in st.session_state:
         st.session_state.selected_payout = None
 
     c1, c2, c3 = st.columns([2, 2, 1])
+    
     with c1:
-        if st.button(f"🗓️ Due for {sel_month_name} 15th: ₱{tot_15th:,.2f}", type="primary" if st.session_state.selected_payout == "15th" else "secondary", use_container_width=True):
+        if st.button(f"🗓️ Due for {sel_month_name} 15th: ₱{tot_15th_grand:,.2f}", type="primary" if st.session_state.selected_payout == "15th" else "secondary", use_container_width=True):
             st.session_state.selected_payout = "15th" if st.session_state.selected_payout != "15th" else None
+            
+        sub_a, sub_b = st.columns(2)
+        sub_a.caption(f"🏠 **Ours:** ₱{tot_15th_ours:,.2f}")
+        sub_b.caption(f"🤝 **Tatay/Kuya:** ₱{tot_15th_others:,.2f}")
 
     with c2:
-        if st.button(f"🗓️ Due for {sel_month_name} 30th: ₱{tot_30th:,.2f}", type="primary" if st.session_state.selected_payout == "30th" else "secondary", use_container_width=True):
+        if st.button(f"🗓️ Due for {sel_month_name} 30th: ₱{tot_30th_grand:,.2f}", type="primary" if st.session_state.selected_payout == "30th" else "secondary", use_container_width=True):
             st.session_state.selected_payout = "30th" if st.session_state.selected_payout != "30th" else None
+            
+        sub_c, sub_d = st.columns(2)
+        sub_c.caption(f"🏠 **Ours:** ₱{tot_30th_ours:,.2f}")
+        sub_d.caption(f"🤝 **Tatay/Kuya:** ₱{tot_30th_others:,.2f}")
 
     with c3:
         if st.button("❌ Close View", use_container_width=True):
@@ -175,7 +205,6 @@ if page == "💳 Credit Cards":
         payout_tag = st.session_state.selected_payout
         st.info(f"📋 **Showing Breakdown for {sel_month_name} {payout_tag} Payout**")
         
-        # Filter cards for selected payout
         selected_cards = cards_df[cards_df["Pay Period"].astype(str).str.contains(payout_tag)]["Card Name"].dropna().tolist()
         
         d1, d2 = st.columns(2)
