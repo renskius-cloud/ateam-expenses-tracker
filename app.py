@@ -79,11 +79,13 @@ if page == "💳 Credit Cards":
     dashboard_rows = []
     card_windows = {} # Store calculated date ranges per card
     
-    tot_15th_ours = 0.0
-    tot_15th_others = 0.0
+    tot_15th_tx = 0.0
+    tot_15th_inst_ours = 0.0
+    tot_15th_inst_others = 0.0
     
-    tot_30th_ours = 0.0
-    tot_30th_others = 0.0
+    tot_30th_tx = 0.0
+    tot_30th_inst_ours = 0.0
+    tot_30th_inst_others = 0.0
 
     for _, card in cards_df.iterrows():
         card_name = str(card.get("Card Name", "")).strip()
@@ -133,16 +135,16 @@ if page == "💳 Credit Cards":
                 ]
                 tx_sum = in_range_tx["Amount"].apply(clean_num).sum()
 
-        card_total_ours = tx_sum + inst_ours
-        card_total_others = inst_others
-        total_card_due = card_total_ours + card_total_others
+        total_card_due = tx_sum + inst_ours + inst_others
 
         if "15" in pay_period:
-            tot_15th_ours += card_total_ours
-            tot_15th_others += card_total_others
+            tot_15th_tx += tx_sum
+            tot_15th_inst_ours += inst_ours
+            tot_15th_inst_others += inst_others
         else:
-            tot_30th_ours += card_total_ours
-            tot_30th_others += card_total_others
+            tot_30th_tx += tx_sum
+            tot_30th_inst_ours += inst_ours
+            tot_30th_inst_others += inst_others
 
         # Check Payment Status
         status = "Unpaid"
@@ -168,11 +170,11 @@ if page == "💳 Credit Cards":
 
     display_dashboard_df = pd.DataFrame(dashboard_rows)
 
-    tot_15th_grand = tot_15th_ours + tot_15th_others
-    tot_30th_grand = tot_30th_ours + tot_30th_others
+    tot_15th_grand = tot_15th_tx + tot_15th_inst_ours + tot_15th_inst_others
+    tot_30th_grand = tot_30th_tx + tot_30th_inst_ours + tot_30th_inst_others
 
-    # --- CLICKABLE PAYOUT DUES BUTTONS WITH SPLIT METRICS ---
-    st.markdown("#### 🗓️ Payout Dues Summary *(Click to view details)*")
+    # --- CLICKABLE PAYOUT DUES BUTTONS WITH CLEAN SUB-BREAKDOWNS ---
+    st.markdown("#### 🗓️ Payout Dues Summary *(Click to view tables)*")
     
     if "selected_payout" not in st.session_state:
         st.session_state.selected_payout = None
@@ -183,31 +185,32 @@ if page == "💳 Credit Cards":
         if st.button(f"🗓️ Due for {sel_month_name} 15th: ₱{tot_15th_grand:,.2f}", type="primary" if st.session_state.selected_payout == "15th" else "secondary", use_container_width=True):
             st.session_state.selected_payout = "15th" if st.session_state.selected_payout != "15th" else None
             
-        sub_a, sub_b = st.columns(2)
-        sub_a.caption(f"🏠 **Ours:** ₱{tot_15th_ours:,.2f}")
-        sub_b.caption(f"🤝 **Tatay/Kuya:** ₱{tot_15th_others:,.2f}")
+        sub_a, sub_b, sub_c = st.columns(3)
+        sub_a.caption(f"🧾 **Daily:** ₱{tot_15th_tx:,.2f}")
+        sub_b.caption(f"🏠 **Ours Inst:** ₱{tot_15th_inst_ours:,.2f}")
+        sub_c.caption(f"🤝 **Tatay/Kuya:** ₱{tot_15th_inst_others:,.2f}")
 
     with c2:
         if st.button(f"🗓️ Due for {sel_month_name} 30th: ₱{tot_30th_grand:,.2f}", type="primary" if st.session_state.selected_payout == "30th" else "secondary", use_container_width=True):
             st.session_state.selected_payout = "30th" if st.session_state.selected_payout != "30th" else None
             
-        sub_c, sub_d = st.columns(2)
-        sub_c.caption(f"🏠 **Ours:** ₱{tot_30th_ours:,.2f}")
-        sub_d.caption(f"🤝 **Tatay/Kuya:** ₱{tot_30th_others:,.2f}")
+        sub_d, sub_e, sub_f = st.columns(3)
+        sub_d.caption(f"🧾 **Daily:** ₱{tot_30th_tx:,.2f}")
+        sub_e.caption(f"🏠 **Ours Inst:** ₱{tot_30th_inst_ours:,.2f}")
+        sub_f.caption(f"🤝 **Tatay/Kuya:** ₱{tot_30th_inst_others:,.2f}")
 
     with c3:
         if st.button("❌ Close View", use_container_width=True):
             st.session_state.selected_payout = None
 
-    # --- DYNAMIC BREAKDOWN DISPLAY WHEN CLICKED ---
+    # --- DYNAMIC BREAKDOWN DISPLAY WHEN CLICKED (TABLES ONLY) ---
     if st.session_state.selected_payout:
         payout_tag = st.session_state.selected_payout
+        st.info(f"📋 **Showing Transaction & Installment Breakdown for {sel_month_name} {payout_tag} Payout**")
         
         payout_cards = cards_df[cards_df["Pay Period"].astype(str).str.contains(payout_tag)]["Card Name"].dropna().str.strip().tolist()
         
-        # Calculate Subtotals for the Breakdown Box
-        # 1. Daily Txs
-        tx_subtotal = 0.0
+        # Filter Daily Txs
         filtered_tx = pd.DataFrame()
         if not tx_df.empty and "Card" in tx_df.columns:
             tx_copy = tx_df.copy()
@@ -223,34 +226,11 @@ if page == "💳 Credit Cards":
                     ]
                     in_period_txs.append(match_tx)
             filtered_tx = pd.concat(in_period_txs, ignore_index=True) if in_period_txs else pd.DataFrame()
-            if not filtered_tx.empty and "Amount" in filtered_tx.columns:
-                tx_subtotal = filtered_tx["Amount"].apply(clean_num).sum()
 
-        # 2. Installments (Ours vs Tatay/Kuya)
-        inst_ours_subtotal = 0.0
-        inst_others_subtotal = 0.0
+        # Filter Installments
         filtered_inst = pd.DataFrame()
         if not inst_df.empty and "Card" in inst_df.columns:
             filtered_inst = inst_df[inst_df["Card"].astype(str).str.strip().isin(payout_cards)].copy()
-            if not filtered_inst.empty:
-                for _, row in filtered_inst.iterrows():
-                    m_amt = clean_num(row.get("Monthly_Payment", 0))
-                    owner = str(row.get("Owner", "")).strip().lower()
-                    if owner in ["tatay", "kuya jaypard"]:
-                        inst_others_subtotal += m_amt
-                    else:
-                        inst_ours_subtotal += m_amt
-
-        grand_subtotal = tx_subtotal + inst_ours_subtotal + inst_others_subtotal
-
-        # --- SUBHEADER SUMMARY BAR ---
-        st.info(f"📋 **Breakdown Summary for {sel_month_name} {payout_tag} Payout**")
-        
-        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-        m_col1.metric("🧾 Daily Purchases", f"₱{tx_subtotal:,.2f}")
-        m_col2.metric("🏠 Ours Installments", f"₱{inst_ours_subtotal:,.2f}")
-        m_col3.metric("🤝 Tatay/Kuya Installments", f"₱{inst_others_subtotal:,.2f}")
-        m_col4.metric("💰 Total Payout Due", f"₱{grand_subtotal:,.2f}")
 
         d1, d2 = st.columns(2)
         
