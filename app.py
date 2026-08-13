@@ -10,17 +10,32 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- BACKGROUND IMAGE INJECTION ---
+# --- BACKGROUND & FROSTED GLASS SIDEBAR INJECTION ---
 bg_img_url = "https://lh3.googleusercontent.com/d/1qDaExmKTO9-0ZBF5thIM2EA0eTrSd6Zd"
 
 st.markdown(f"""
     <style>
+    /* Main Page Background */
     .stApp {{
         background: linear-gradient(rgba(14, 17, 23, 0.78), rgba(14, 17, 23, 0.78)), url("{bg_img_url}");
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
         background-attachment: fixed;
+    }}
+
+    /* Frosted White Glass Sidebar */
+    [data-testid="stSidebar"] {{
+        background-color: rgba(255, 255, 255, 0.12) !important;
+        backdrop-filter: blur(16px) saturate(180%) !important;
+        -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.25) !important;
+        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1) !important;
+    }}
+
+    /* Sidebar Text & Label Styling for High Readability */
+    [data-testid="stSidebar"] * {{
+        color: #FFFFFF !important;
     }}
     </style>
 """, unsafe_allow_html=True)
