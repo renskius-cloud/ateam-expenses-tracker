@@ -10,12 +10,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- BRIGHT FROSTED GLASS THEME & HIGH-CONTRAST CSS INJECTION ---
+# --- BRIGHT FROSTED WHITE GLASS CSS INJECTION ---
 bg_img_url = "https://lh3.googleusercontent.com/d/1qDaExmKTO9-0ZBF5thIM2EA0eTrSd6Zd"
 
 st.markdown(f"""
     <style>
-    /* Main Page Bright Background */
+    /* 1. Main Page Bright Background */
     .stApp {{
         background: url("{bg_img_url}");
         background-size: cover;
@@ -24,22 +24,12 @@ st.markdown(f"""
         background-attachment: fixed;
     }}
 
-    /* Force All Text, Headings, and Captions to High-Contrast Dark Colors */
-    .stApp, .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6 {{
+    /* 2. Global Text Color Override - Sharp Navy/Black */
+    .stApp, .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6, .stApp td, .stApp th {{
         color: #0F172A !important;
     }}
 
-    /* FIX: Force Sub-Caption Texts under Buttons to be Bold & Dark */
-    div[data-testid="stCaptionContainer"] p, 
-    div[data-testid="stCaptionContainer"] span,
-    .stCaption {{
-        color: #0F172A !important;
-        font-weight: 700 !important;
-        font-size: 0.9rem !important;
-        text-shadow: 0px 0px 4px rgba(255, 255, 255, 0.9) !important;
-    }}
-
-    /* Frosted White Glass Sidebar */
+    /* 3. Frosted White Sidebar */
     [data-testid="stSidebar"] {{
         background-color: rgba(255, 255, 255, 0.55) !important;
         backdrop-filter: blur(16px) saturate(180%) !important;
@@ -47,34 +37,63 @@ st.markdown(f"""
         border-right: 1px solid rgba(255, 255, 255, 0.4) !important;
     }}
 
-    /* Frosted White Containers, Forms, and Expanders */
+    /* 4. Frosted White Glass Containers & Dataframes (Removes Black Boxes) */
     div[data-testid="stDataFrame"], 
     div[data-testid="stForm"], 
     .stAlert, 
-    div[data-testid="stExpander"] {{
-        background-color: rgba(255, 255, 255, 0.85) !important;
-        backdrop-filter: blur(14px) !important;
-        -webkit-backdrop-filter: blur(14px) !important;
+    div[data-testid="stExpander"],
+    [data-testid="stDataFrame"] > div {{
+        background-color: rgba(255, 255, 255, 0.88) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
         border-radius: 12px !important;
-        border: 1px solid rgba(255, 255, 255, 0.7) !important;
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15) !important;
-        padding: 12px !important;
+        border: 1px solid rgba(255, 255, 255, 0.8) !important;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.12) !important;
+        padding: 10px !important;
     }}
 
-    /* Input Fields Styling */
+    /* 5. Frosted White Glass Buttons (Removes Black Buttons) */
+    button {{
+        background-color: rgba(255, 255, 255, 0.85) !important;
+        backdrop-filter: blur(10px) !important;
+        -webkit-backdrop-filter: blur(10px) !important;
+        color: #0F172A !important;
+        border: 1px solid rgba(255, 255, 255, 0.9) !important;
+        border-radius: 10px !important;
+        font-weight: 700 !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+    }}
+
+    button:hover {{
+        background-color: rgba(255, 255, 255, 0.98) !important;
+        border-color: #2563EB !important;
+        color: #2563EB !important;
+    }}
+
+    /* Selected Active Button */
+    button[type="primary"], button[data-testid="baseButton-primary"] {{
+        background-color: #2563EB !important;
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+        border: none !important;
+    }}
+
+    /* 6. Sub-caption Texts under Buttons (Bold & Dark) */
+    div[data-testid="stCaptionContainer"] p, 
+    div[data-testid="stCaptionContainer"] span,
+    .stCaption {{
+        color: #0F172A !important;
+        font-weight: 800 !important;
+        font-size: 0.92rem !important;
+        text-shadow: 0px 0px 6px rgba(255, 255, 255, 0.9) !important;
+    }}
+
+    /* 7. Input Fields & Dropdowns */
     input, select, textarea, div[role="combobox"] {{
         background-color: rgba(255, 255, 255, 0.95) !important;
         border-radius: 8px !important;
         border: 1px solid #CBD5E1 !important;
         color: #0F172A !important;
-    }}
-
-    /* Primary Button Styling */
-    button[type="primary"] {{
-        background-color: #2563EB !important;
-        color: #FFFFFF !important;
-        border-radius: 8px !important;
-        border: none !important;
     }}
     </style>
 """, unsafe_allow_html=True)
@@ -331,7 +350,7 @@ if page == "💳 Credit Cards":
                     in_period_txs.append(match_tx)
             filtered_tx = pd.concat(in_period_txs, ignore_index=True) if in_period_txs else pd.DataFrame()
 
-        # Filter & Annotate Installments with Progress (Auto-Hiding Completed Items)
+        # Filter & Annotate Installments with Progress
         filtered_inst = pd.DataFrame()
         if not inst_df.empty and "Card" in inst_df.columns:
             inst_copy = inst_df[inst_df["Card"].astype(str).str.strip().isin(payout_cards)].copy()
