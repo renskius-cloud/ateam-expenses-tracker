@@ -37,12 +37,11 @@ st.markdown(f"""
         border-right: 1px solid rgba(255, 255, 255, 0.4) !important;
     }}
 
-    /* 4. Frosted White Glass Containers & Dataframes (Removes Black Boxes) */
+    /* 4. Frosted White Glass Outer Containers */
     div[data-testid="stDataFrame"], 
     div[data-testid="stForm"], 
     .stAlert, 
-    div[data-testid="stExpander"],
-    [data-testid="stDataFrame"] > div {{
+    div[data-testid="stExpander"] {{
         background-color: rgba(255, 255, 255, 0.88) !important;
         backdrop-filter: blur(16px) !important;
         -webkit-backdrop-filter: blur(16px) !important;
@@ -52,7 +51,16 @@ st.markdown(f"""
         padding: 10px !important;
     }}
 
-    /* 5. Frosted White Glass Buttons (Removes Black Buttons) */
+    /* 5. FIX: STRIP INTERNAL BLACK CANVAS & BACKGROUND FROM DATAFRAMES */
+    div[data-testid="stDataFrame"] *,
+    div[data-testid="stDataFrame"] [data-testid="stElementCanvas"],
+    div[data-testid="stDataFrame"] canvas,
+    div[data-testid="stDataFrame"] iframe,
+    div[data-testid="stDataFrame"] div {{
+        background-color: transparent !important;
+    }}
+
+    /* 6. Frosted White Glass Buttons */
     button {{
         background-color: rgba(255, 255, 255, 0.85) !important;
         backdrop-filter: blur(10px) !important;
@@ -78,7 +86,7 @@ st.markdown(f"""
         border: none !important;
     }}
 
-    /* 6. Sub-caption Texts under Buttons (Bold & Dark) */
+    /* 7. Sub-caption Texts under Buttons (Bold & Dark) */
     div[data-testid="stCaptionContainer"] p, 
     div[data-testid="stCaptionContainer"] span,
     .stCaption {{
@@ -88,7 +96,7 @@ st.markdown(f"""
         text-shadow: 0px 0px 6px rgba(255, 255, 255, 0.9) !important;
     }}
 
-    /* 7. Input Fields & Dropdowns */
+    /* 8. Input Fields & Dropdowns */
     input, select, textarea, div[role="combobox"] {{
         background-color: rgba(255, 255, 255, 0.95) !important;
         border-radius: 8px !important;
