@@ -15,7 +15,7 @@ bg_img_url = "https://lh3.googleusercontent.com/d/1qDaExmKTO9-0ZBF5thIM2EA0eTrSd
 
 st.markdown(f"""
     <style>
-    /* Main Page Bright Background */
+    /* 1. Main Page Bright Background */
     .stApp {{
         background: url("{bg_img_url}");
         background-size: cover;
@@ -24,12 +24,12 @@ st.markdown(f"""
         background-attachment: fixed;
     }}
 
-    /* Global Text Color Override */
-    .stApp, .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6 {{
+    /* 2. Global Text Color Override - Sharp Navy/Black */
+    .stApp, .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6, .stApp td, .stApp th {{
         color: #0F172A !important;
     }}
 
-    /* Frosted White Sidebar */
+    /* 3. Frosted White Sidebar */
     [data-testid="stSidebar"] {{
         background-color: rgba(255, 255, 255, 0.55) !important;
         backdrop-filter: blur(16px) saturate(180%) !important;
@@ -37,7 +37,20 @@ st.markdown(f"""
         border-right: 1px solid rgba(255, 255, 255, 0.4) !important;
     }}
 
-    /* Custom Light Frosted Glass HTML Table Styling */
+    /* 4. Frosted White Glass Outer Containers */
+    div[data-testid="stForm"], 
+    .stAlert, 
+    div[data-testid="stExpander"] {{
+        background-color: rgba(255, 255, 255, 0.88) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        border-radius: 12px !important;
+        border: 1px solid rgba(255, 255, 255, 0.8) !important;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.12) !important;
+        padding: 12px !important;
+    }}
+
+    /* 5. Custom Light Frosted Glass HTML Table Styling */
     .glass-table {{
         width: 100%;
         border-collapse: separate;
@@ -72,7 +85,44 @@ st.markdown(f"""
         background-color: rgba(255, 255, 255, 0.5) !important;
     }}
 
-    /* Buttons */
+    /* 6. FIX: STREAMLIT TABS FROSTED GLASS BAR & VISIBLE LABELS */
+    div[data-baseweb="tab-list"] {{
+        background-color: rgba(255, 255, 255, 0.85) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        border-radius: 12px !important;
+        padding: 6px 10px !important;
+        border: 1px solid rgba(255, 255, 255, 0.9) !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+        gap: 8px !important;
+        margin-bottom: 12px !important;
+    }}
+
+    button[data-baseweb="tab"] {{
+        background-color: transparent !important;
+        border-radius: 8px !important;
+        padding: 8px 16px !important;
+        border: none !important;
+    }}
+
+    button[data-baseweb="tab"] p, 
+    button[data-baseweb="tab"] span {{
+        color: #0F172A !important;
+        font-weight: 700 !important;
+        font-size: 0.98rem !important;
+    }}
+
+    /* Selected Active Tab */
+    button[aria-selected="true"] {{
+        background-color: #2563EB !important;
+    }}
+
+    button[aria-selected="true"] p, 
+    button[aria-selected="true"] span {{
+        color: #FFFFFF !important;
+    }}
+
+    /* 7. Frosted White Glass Buttons */
     button {{
         background-color: rgba(255, 255, 255, 0.85) !important;
         backdrop-filter: blur(10px) !important;
@@ -91,7 +141,7 @@ st.markdown(f"""
         border: none !important;
     }}
 
-    /* Sub-caption Texts under Buttons */
+    /* 8. Sub-caption Texts under Buttons (Bold & Dark) */
     div[data-testid="stCaptionContainer"] p, 
     div[data-testid="stCaptionContainer"] span,
     .stCaption {{
@@ -101,16 +151,7 @@ st.markdown(f"""
         text-shadow: 0px 0px 6px rgba(255, 255, 255, 0.9) !important;
     }}
 
-    /* Forms, Inputs, and Expanders */
-    div[data-testid="stForm"], div[data-testid="stExpander"] {{
-        background-color: rgba(255, 255, 255, 0.85) !important;
-        backdrop-filter: blur(14px) !important;
-        border-radius: 12px !important;
-        border: 1px solid rgba(255, 255, 255, 0.7) !important;
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.12) !important;
-        padding: 12px !important;
-    }}
-
+    /* 9. Input Fields & Dropdowns */
     input, select, textarea, div[role="combobox"] {{
         background-color: rgba(255, 255, 255, 0.95) !important;
         border-radius: 8px !important;
@@ -204,7 +245,7 @@ page = st.sidebar.radio("Go to", ["💳 Credit Cards", "📜 Daddy List"])
 # PAGE 1: CREDIT CARDS
 # ==========================================
 if page == "💳 Credit Cards":
-    st.title("💳 A-Team CC Tracker")
+    st.title("💳 Credit Cards Tracker")
 
     # --- Billing Period Selection ---
     col_m, col_y = st.columns(2)
@@ -346,7 +387,7 @@ if page == "💳 Credit Cards":
             
         sub_d, sub_e, sub_f = st.columns(3)
         sub_d.caption(f"🧾 **Daily:** {fmt_peso(tot_30th_tx)}")
-        sub_e.caption(f"🏠 **A-Team Inst:** {fmt_peso(tot_30th_inst_ours)}")
+        sub_e.caption(f"🏠 **A-Team:** {fmt_peso(tot_30th_inst_ours)}")
         sub_f.caption(f"🤝 **Tatay/Kuya:** {fmt_peso(tot_30th_inst_others)}")
 
     with c3:
