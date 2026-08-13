@@ -44,6 +44,11 @@ def clean_num(val):
     except:
         return 0.0
 
+def fmt_peso(val):
+    """Formats any number into ₱1,234.56 string format."""
+    num = clean_num(val)
+    return f"₱{num:,.2f}"
+
 def parse_day(val):
     if pd.isna(val):
         return 1
@@ -55,7 +60,7 @@ def calculate_tenor_progress(start_date_str, tenor_total, sel_month, sel_year):
     if pd.isna(start_date_str) or not start_date_str:
         return True, f"1/{tenor_total}"
     try:
-        dt = pd.to_datetime(start_date_str, errors="coerce")
+        dt = pd.to_datetime(start_date_str, format="mixed", dayfirst=False, errors="coerce")
         if pd.isna(dt):
             return True, f"1/{tenor_total}"
         
@@ -65,9 +70,9 @@ def calculate_tenor_progress(start_date_str, tenor_total, sel_month, sel_year):
         elapsed_months = (sel_year - start_y) * 12 + (sel_month - start_m) + 1
         
         if elapsed_months < 1:
-            return False, f"0/{tenor_total}" # Not started yet
+            return False, f"0/{tenor_total}"
         elif elapsed_months > tenor_total:
-            return False, f"Completed ({tenor_total}/{tenor_total})" # Fully paid
+            return False, f"Completed ({tenor_total}/{tenor_total})"
         else:
             return True, f"{elapsed_months}/{tenor_total}"
     except:
@@ -100,7 +105,7 @@ if page == "💳 Credit Cards":
 
     # --- STATEMENT WINDOW & DASHBOARD COMPUTATIONS ---
     dashboard_rows = []
-    card_windows = {} # Store calculated date ranges per card
+    card_windows = {}
     
     tot_15th_tx = 0.0
     tot_15th_inst_ours = 0.0
@@ -156,7 +161,7 @@ if page == "💳 Credit Cards":
         if not tx_df.empty and "Card" in tx_df.columns:
             card_txs = tx_df[tx_df["Card"].astype(str).str.strip() == card_name].copy()
             if not card_txs.empty:
-                card_txs["Parsed_Date"] = pd.to_datetime(card_txs["Date"], errors="coerce")
+                card_txs["Parsed_Date"] = pd.to_datetime(card_txs["Date"], format="mixed", dayfirst=False, errors="coerce")
                 in_range_tx = card_txs[
                     (card_txs["Parsed_Date"] >= stmt_start_date) & 
                     (card_txs["Parsed_Date"] <= stmt_end_date + timedelta(hours=23, minutes=59))
@@ -192,7 +197,7 @@ if page == "💳 Credit Cards":
             "Credit Card": card_name,
             "Pay Period": pay_period,
             "Statement / Billing Range": stmt_range_str,
-            "Total Amount Due": f"₱{total_card_due:,.2f}",
+            "Total Amount Due": fmt_peso(total_card_due),
             "Payment Status": status
         })
 
@@ -210,22 +215,22 @@ if page == "💳 Credit Cards":
     c1, c2, c3 = st.columns([2, 2, 1])
     
     with c1:
-        if st.button(f"🗓️ Due for {sel_month_name} 15th: ₱{tot_15th_grand:,.2f}", type="primary" if st.session_state.selected_payout == "15th" else "secondary", use_container_width=True):
+        if st.button(f"🗓️ Due for {sel_month_name} 15th: {fmt_peso(tot_15th_grand)}", type="primary" if st.session_state.selected_payout == "15th" else "secondary", use_container_width=True):
             st.session_state.selected_payout = "15th" if st.session_state.selected_payout != "15th" else None
             
         sub_a, sub_b, sub_c = st.columns(3)
-        sub_a.caption(f"🧾 **Daily:** ₱{tot_15th_tx:,.2f}")
-        sub_b.caption(f"🏠 **Ours Inst:** ₱{tot_15th_inst_ours:,.2f}")
-        sub_c.caption(f"🤝 **Tatay/Kuya:** ₱{tot_15th_inst_others:,.2f}")
+        sub_a.caption(f"🧾 **Daily:** {fmt_peso(tot_15th_tx)}")
+        sub_b.caption(f"🏠 **Ours Inst:** {fmt_peso(tot_15th_inst_ours)}")
+        sub_c.caption(f"🤝 **Tatay/Kuya:** {fmt_peso(tot_15th_inst_others)}")
 
     with c2:
-        if st.button(f"🗓️ Due for {sel_month_name} 30th: ₱{tot_30th_grand:,.2f}", type="primary" if st.session_state.selected_payout == "30th" else "secondary", use_container_width=True):
+        if st.button(f"🗓️ Due for {sel_month_name} 30th: {fmt_peso(tot_30th_grand)}", type="primary" if st.session_state.selected_payout == "30th" else "secondary", use_container_width=True):
             st.session_state.selected_payout = "30th" if st.session_state.selected_payout != "30th" else None
             
         sub_d, sub_e, sub_f = st.columns(3)
-        sub_d.caption(f"🧾 **Daily:** ₱{tot_30th_tx:,.2f}")
-        sub_e.caption(f"🏠 **Ours Inst:** ₱{tot_30th_inst_ours:,.2f}")
-        sub_f.caption(f"🤝 **Tatay/Kuya:** ₱{tot_30th_inst_others:,.2f}")
+        sub_d.caption(f"🧾 **Daily:** {fmt_peso(tot_30th_tx)}")
+        sub_e.caption(f"🏠 **Ours Inst:** {fmt_peso(tot_30th_inst_ours)}")
+        sub_f.caption(f"🤝 **Tatay/Kuya:** {fmt_peso(tot_30th_inst_others)}")
 
     with c3:
         if st.button("❌ Close View", use_container_width=True):
@@ -242,20 +247,22 @@ if page == "💳 Credit Cards":
         filtered_tx = pd.DataFrame()
         if not tx_df.empty and "Card" in tx_df.columns:
             tx_copy = tx_df.copy()
-            tx_copy["Parsed_Date"] = pd.to_datetime(tx_copy["Date"], errors="coerce")
+            tx_copy["Card"] = tx_copy["Card"].astype(str).str.strip()
+            tx_copy["Parsed_Date"] = pd.to_datetime(tx_copy["Date"], format="mixed", dayfirst=False, errors="coerce")
+            
             in_period_txs = []
             for cname in payout_cards:
                 if cname in card_windows:
                     s_start, s_end = card_windows[cname]
                     match_tx = tx_copy[
-                        (tx_copy["Card"].astype(str).str.strip() == cname) &
+                        (tx_copy["Card"] == cname) &
                         (tx_copy["Parsed_Date"] >= s_start) &
                         (tx_copy["Parsed_Date"] <= s_end + timedelta(hours=23, minutes=59))
                     ]
                     in_period_txs.append(match_tx)
             filtered_tx = pd.concat(in_period_txs, ignore_index=True) if in_period_txs else pd.DataFrame()
 
-        # Filter & Annotate Installments with Progress (Hiding Completed Items)
+        # Filter & Annotate Installments with Progress
         filtered_inst = pd.DataFrame()
         if not inst_df.empty and "Card" in inst_df.columns:
             inst_copy = inst_df[inst_df["Card"].astype(str).str.strip().isin(payout_cards)].copy()
@@ -281,7 +288,10 @@ if page == "💳 Credit Cards":
             st.markdown(f"##### 🧾 Daily Purchases ({payout_tag} Cards)")
             if not filtered_tx.empty:
                 display_cols = [c for c in ["Date", "Card", "Category", "Amount", "Notes"] if c in filtered_tx.columns]
-                st.dataframe(filtered_tx[display_cols], use_container_width=True, hide_index=True)
+                disp_tx = filtered_tx[display_cols].copy()
+                if "Amount" in disp_tx.columns:
+                    disp_tx["Amount"] = disp_tx["Amount"].apply(fmt_peso)
+                st.dataframe(disp_tx, use_container_width=True, hide_index=True)
             else:
                 st.write("No daily transactions in this statement period.")
                 
@@ -289,7 +299,10 @@ if page == "💳 Credit Cards":
             st.markdown(f"##### 🔄 Monthly Installments ({payout_tag} Cards)")
             if not filtered_inst.empty:
                 display_inst_cols = [c for c in ["Owner", "Item", "Card", "Monthly_Payment", "Tenor_Progress", "Start_Date"] if c in filtered_inst.columns]
-                st.dataframe(filtered_inst[display_inst_cols], use_container_width=True, hide_index=True)
+                disp_inst = filtered_inst[display_inst_cols].copy()
+                if "Monthly_Payment" in disp_inst.columns:
+                    disp_inst["Monthly_Payment"] = disp_inst["Monthly_Payment"].apply(fmt_peso)
+                st.dataframe(disp_inst, use_container_width=True, hide_index=True)
             else:
                 st.write("No active installments found for this period.")
 
@@ -339,7 +352,7 @@ if page == "💳 Credit Cards":
                     "Date": d_date.strftime("%m/%d/%Y"),
                     "Card": d_card,
                     "Category": d_cat,
-                    "Amount": f"₱{d_amt:,.2f}",
+                    "Amount": fmt_peso(d_amt),
                     "Notes": d_notes
                 }])
                 updated = pd.concat([tx_df, new_row], ignore_index=True)
@@ -365,9 +378,9 @@ if page == "💳 Credit Cards":
                     "Owner": i_owner,
                     "Item": i_item,
                     "Card": i_card,
-                    "Principal": f"₱{i_prin:,.2f}",
+                    "Principal": fmt_peso(i_prin),
                     "Tenor": i_tenor,
-                    "Monthly_Payment": f"₱{i_monthly:,.2f}",
+                    "Monthly_Payment": fmt_peso(i_monthly),
                     "Start_Date": i_start.strftime("%m/%d/%Y")
                 }])
                 updated = pd.concat([inst_df, new_inst], ignore_index=True)
@@ -385,12 +398,18 @@ elif page == "📜 Daddy List":
 
     if not daddy_df.empty and "Amount" in daddy_df.columns:
         total_daddy_due = daddy_df["Amount"].apply(clean_num).sum()
-        st.metric("Total Outstanding Balance", f"₱{total_daddy_due:,.2f}")
+        st.metric("Total Outstanding Balance", fmt_peso(total_daddy_due))
 
     st.divider()
 
     st.markdown("### 📋 Expenses List")
-    st.dataframe(daddy_df, use_container_width=True, hide_index=True)
+    if not daddy_df.empty:
+        disp_daddy = daddy_df.copy()
+        if "Amount" in disp_daddy.columns:
+            disp_daddy["Amount"] = disp_daddy["Amount"].apply(fmt_peso)
+        st.dataframe(disp_daddy, use_container_width=True, hide_index=True)
+    else:
+        st.info("No entries found in Daddy list.")
 
     st.divider()
 
@@ -406,7 +425,7 @@ elif page == "📜 Daddy List":
             new_entry = pd.DataFrame([{
                 "Date": d_date.strftime("%m/%d/%Y"),
                 "Items": d_item,
-                "Amount": f"₱{d_amt:,.2f}",
+                "Amount": fmt_peso(d_amt),
                 "Notes": d_notes
             }])
             updated = pd.concat([daddy_df, new_entry], ignore_index=True)
