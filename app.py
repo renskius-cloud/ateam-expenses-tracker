@@ -15,7 +15,7 @@ bg_img_url = "https://lh3.googleusercontent.com/d/1qDaExmKTO9-0ZBF5thIM2EA0eTrSd
 
 st.markdown(f"""
     <style>
-    /* 1. Main Page Bright Background */
+    /* Main Page Bright Background */
     .stApp {{
         background: url("{bg_img_url}");
         background-size: cover;
@@ -24,12 +24,12 @@ st.markdown(f"""
         background-attachment: fixed;
     }}
 
-    /* 2. Global Text Color Override - Sharp Navy/Black */
-    .stApp, .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6, .stApp td, .stApp th {{
+    /* Global Text Color Override */
+    .stApp, .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6 {{
         color: #0F172A !important;
     }}
 
-    /* 3. Frosted White Sidebar */
+    /* Frosted White Sidebar */
     [data-testid="stSidebar"] {{
         background-color: rgba(255, 255, 255, 0.55) !important;
         backdrop-filter: blur(16px) saturate(180%) !important;
@@ -37,30 +37,42 @@ st.markdown(f"""
         border-right: 1px solid rgba(255, 255, 255, 0.4) !important;
     }}
 
-    /* 4. Frosted White Glass Outer Containers */
-    div[data-testid="stDataFrame"], 
-    div[data-testid="stForm"], 
-    .stAlert, 
-    div[data-testid="stExpander"] {{
+    /* Custom Light Frosted Glass HTML Table Styling */
+    .glass-table {{
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
         background-color: rgba(255, 255, 255, 0.88) !important;
         backdrop-filter: blur(16px) !important;
         -webkit-backdrop-filter: blur(16px) !important;
         border-radius: 12px !important;
         border: 1px solid rgba(255, 255, 255, 0.8) !important;
         box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.12) !important;
-        padding: 10px !important;
+        overflow: hidden;
+        margin-bottom: 20px;
     }}
 
-    /* 5. FIX: STRIP INTERNAL BLACK CANVAS & BACKGROUND FROM DATAFRAMES */
-    div[data-testid="stDataFrame"] *,
-    div[data-testid="stDataFrame"] [data-testid="stElementCanvas"],
-    div[data-testid="stDataFrame"] canvas,
-    div[data-testid="stDataFrame"] iframe,
-    div[data-testid="stDataFrame"] div {{
-        background-color: transparent !important;
+    .glass-table th {{
+        background-color: rgba(255, 255, 255, 0.95) !important;
+        color: #0F172A !important;
+        font-weight: 700 !important;
+        padding: 12px 16px !important;
+        text-align: left !important;
+        border-bottom: 2px solid rgba(203, 213, 225, 0.8) !important;
     }}
 
-    /* 6. Frosted White Glass Buttons */
+    .glass-table td {{
+        padding: 10px 16px !important;
+        color: #0F172A !important;
+        border-bottom: 1px solid rgba(226, 232, 240, 0.6) !important;
+        background: transparent !important;
+    }}
+
+    .glass-table tr:hover td {{
+        background-color: rgba(255, 255, 255, 0.5) !important;
+    }}
+
+    /* Buttons */
     button {{
         background-color: rgba(255, 255, 255, 0.85) !important;
         backdrop-filter: blur(10px) !important;
@@ -72,13 +84,6 @@ st.markdown(f"""
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
     }}
 
-    button:hover {{
-        background-color: rgba(255, 255, 255, 0.98) !important;
-        border-color: #2563EB !important;
-        color: #2563EB !important;
-    }}
-
-    /* Selected Active Button */
     button[type="primary"], button[data-testid="baseButton-primary"] {{
         background-color: #2563EB !important;
         color: #FFFFFF !important;
@@ -86,7 +91,7 @@ st.markdown(f"""
         border: none !important;
     }}
 
-    /* 7. Sub-caption Texts under Buttons (Bold & Dark) */
+    /* Sub-caption Texts under Buttons */
     div[data-testid="stCaptionContainer"] p, 
     div[data-testid="stCaptionContainer"] span,
     .stCaption {{
@@ -96,7 +101,16 @@ st.markdown(f"""
         text-shadow: 0px 0px 6px rgba(255, 255, 255, 0.9) !important;
     }}
 
-    /* 8. Input Fields & Dropdowns */
+    /* Forms, Inputs, and Expanders */
+    div[data-testid="stForm"], div[data-testid="stExpander"] {{
+        background-color: rgba(255, 255, 255, 0.85) !important;
+        backdrop-filter: blur(14px) !important;
+        border-radius: 12px !important;
+        border: 1px solid rgba(255, 255, 255, 0.7) !important;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.12) !important;
+        padding: 12px !important;
+    }}
+
     input, select, textarea, div[role="combobox"] {{
         background-color: rgba(255, 255, 255, 0.95) !important;
         border-radius: 8px !important;
@@ -145,6 +159,14 @@ def fmt_peso(val):
     num = clean_num(val)
     return f"₱{num:,.2f}"
 
+def render_glass_table(df):
+    """Renders a pandas DataFrame as a pure HTML white frosted glass table."""
+    if df.empty:
+        st.write("No data available.")
+        return
+    html = df.to_html(classes="glass-table", index=False, escape=False)
+    st.markdown(html, unsafe_allow_html=True)
+
 def parse_day(val):
     if pd.isna(val):
         return 1
@@ -152,7 +174,6 @@ def parse_day(val):
     return nums[0] if nums else 1
 
 def calculate_tenor_progress(start_date_str, tenor_total, sel_month, sel_year):
-    """Calculates active month / total tenor (e.g. 2/6). Returns (is_active, progress_str)"""
     if pd.isna(start_date_str) or not start_date_str:
         return True, f"1/{tenor_total}"
     try:
@@ -387,7 +408,7 @@ if page == "💳 Credit Cards":
                 disp_tx = filtered_tx[display_cols].copy()
                 if "Amount" in disp_tx.columns:
                     disp_tx["Amount"] = disp_tx["Amount"].apply(fmt_peso)
-                st.dataframe(disp_tx, use_container_width=True, hide_index=True)
+                render_glass_table(disp_tx)
             else:
                 st.write("No daily transactions in this statement period.")
                 
@@ -398,7 +419,7 @@ if page == "💳 Credit Cards":
                 disp_inst = filtered_inst[display_inst_cols].copy()
                 if "Monthly_Payment" in disp_inst.columns:
                     disp_inst["Monthly_Payment"] = disp_inst["Monthly_Payment"].apply(fmt_peso)
-                st.dataframe(disp_inst, use_container_width=True, hide_index=True)
+                render_glass_table(disp_inst)
             else:
                 st.write("No active installments found for this period.")
 
@@ -406,7 +427,7 @@ if page == "💳 Credit Cards":
 
     # --- CREDIT CARDS DASHBOARD TABLE ---
     st.markdown("### 📊 Credit Card Dashboard & Status")
-    st.dataframe(display_dashboard_df, use_container_width=True, hide_index=True)
+    render_glass_table(display_dashboard_df)
 
     # --- MARK AS PAID SECTION ---
     with st.expander("✅ Mark Card Payment Status"):
@@ -503,7 +524,7 @@ elif page == "📜 Daddy List":
         disp_daddy = daddy_df.copy()
         if "Amount" in disp_daddy.columns:
             disp_daddy["Amount"] = disp_daddy["Amount"].apply(fmt_peso)
-        st.dataframe(disp_daddy, use_container_width=True, hide_index=True)
+        render_glass_table(disp_daddy)
     else:
         st.info("No entries found in Daddy list.")
 
