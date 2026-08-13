@@ -1,300 +1,295 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime, date
 from streamlit_gsheets import GSheetsConnection
 
-# --- PAGE CONFIGURATION ---
+# 1. PAGE SETUP
 st.set_page_config(
-    page_title="ATeam Expenses Tracker",
+    page_title="ATeam Expenses & CC Tracker",
     page_icon="💳",
     layout="wide"
 )
 
-# --- CUSTOM FROSTED GLASS CSS (MIRRORING APPS SCRIPT DESIGN) ---
-st.markdown("""
-    <style>
-    /* Main Background Gradient */
-    .stApp {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
-        font-family: 'Inter', sans-serif;
-    }
-    
-    /* Frosted Glass Container */
-    .glass-card {
-        background: rgba(255, 255, 255, 0.85);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border-radius: 16px;
-        padding: 24px;
-        border: 1px solid rgba(255, 255, 255, 0.4);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25);
-        color: #0f172a;
-        margin-bottom: 20px;
-    }
-
-    /* Metric Due Cards */
-    .due-card-blue {
-        background: rgba(239, 246, 255, 0.95);
-        border: 2px solid #3b82f6;
-        border-radius: 12px;
-        padding: 16px;
-        text-align: center;
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
-    }
-    
-    .due-card-green {
-        background: rgba(240, 253, 244, 0.95);
-        border: 2px solid #10b981;
-        border-radius: 12px;
-        padding: 16px;
-        text-align: center;
-        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
-    }
-
-    .due-label {
-        font-size: 15px;
-        font-weight: 700;
-        color: #475569;
-        margin-bottom: 4px;
-    }
-
-    .due-amount-blue { font-size: 32px; font-weight: 800; color: #1d4ed8; }
-    .due-amount-green { font-size: 32px; font-weight: 800; color: #047857; }
-
-    /* Custom Tables */
-    .styled-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 10px 0 20px 0;
-        font-size: 14px;
-        border-radius: 10px;
-        overflow: hidden;
-        background: #ffffff;
-        color: #334155;
-    }
-    .styled-table th {
-        background-color: #f1f5f9;
-        color: #0f172a;
-        font-weight: 700;
-        padding: 12px 16px;
-        text-align: left;
-        border-bottom: 2px solid #cbd5e1;
-    }
-    .styled-table td {
-        padding: 10px 16px;
-        border-bottom: 1px solid #e2e8f0;
-        font-weight: 500;
-    }
-
-    /* Pill Badges */
-    .badge-unpaid {
-        background: linear-gradient(135deg, #ef4444, #dc2626);
-        color: white;
-        padding: 4px 12px;
-        border-radius: 12px;
-        font-size: 12px;
-        font-weight: 700;
-        display: inline-block;
-    }
-    .badge-nodue {
-        background: #64748b;
-        color: white;
-        padding: 4px 12px;
-        border-radius: 12px;
-        font-size: 12px;
-        font-weight: 700;
-        display: inline-block;
-    }
-
-    /* Form Section Headers */
-    .section-title {
-        font-size: 18px;
-        font-weight: 700;
-        color: #f8fafc;
-        margin-bottom: 12px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# --- GOOGLE SHEETS CONNECTION WITH FALLBACK MOCK DATA ---
+# 2. GOOGLE SHEETS CONNECTION
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 @st.cache_data(ttl=5)
-def load_data():
+def load_all_data():
+    cards_df = conn.read(worksheet="Cards")
+    tx_df = conn.read(worksheet="Transactions")
+    inst_df = conn.read(worksheet="Installments")
     try:
-        cards_df = conn.read(worksheet="Cards")
-        tx_df = conn.read(worksheet="Transactions")
-        inst_df = conn.read(worksheet="Installments")
-        try:
-            outside_df = conn.read(worksheet="Outside_CC")
-        except:
-            outside_df = pd.DataFrame(columns=["Date", "Category", "Description", "Amount"])
-        return cards_df, tx_df, inst_df, outside_df
-    except Exception as e:
-        # Fallback sample data to prevent crashing
-        cards_df = pd.DataFrame([
-            {"Credit Card": "BPI Gold", "Pay Period": "30th Payout", "Statement / Billing Range": "Jul 14 – Aug 13", "Total Amount Due": "₱2,428.27", "Payment Status": "Unpaid"},
-            {"Credit Card": "Unionbank Rewards", "Pay Period": "15th Payout", "Statement / Billing Range": "Jun 29 – Jul 28", "Total Amount Due": "₱5,458.98", "Payment Status": "Unpaid"},
-            {"Credit Card": "RCBC Preferred Airmiles", "Pay Period": "15th Payout", "Statement / Billing Range": "Jun 23 – Jul 22", "Total Amount Due": "₱38,359.27", "Payment Status": "Unpaid"},
-            {"Credit Card": "SpayLater", "Pay Period": "15th Payout", "Statement / Billing Range": "Jun 5 – Jul 4", "Total Amount Due": "₱0.00", "Payment Status": "No Due"},
-        ])
-        tx_df = pd.DataFrame([
-            {"Date": "8/4/2026", "Card": "HSBC Platinum", "Category": "Dining & Food", "Amount": 1205.00, "Notes": "Bcuts with miggy"},
-            {"Date": "7/18/2026", "Card": "RCBC Preferred Airmiles", "Category": "Dining & Food", "Amount": 1345.00, "Notes": "CONTIS AYALA MARIKINA"},
-            {"Date": "7/12/2026", "Card": "RCBC Preferred Airmiles", "Category": "Health & Medical", "Amount": 5851.00, "Notes": "WATSONS BLUE WAVE"},
-        ])
-        inst_df = pd.DataFrame([
-            {"StartDate": "7/10/2026", "Item": "Credit to Cash (2/2)", "Card": "BPI Gold", "Principal": 4856.54, "Tenor": "2 mos", "Monthly": 2428.27},
-            {"StartDate": "7/26/2026", "Item": "Credit to Cash (1/21)", "Card": "Unionbank Rewards", "Principal": 59933.58, "Tenor": "21 mos", "Monthly": 2853.98},
-            {"StartDate": "7/26/2026", "Item": "THE LOOP-FELIZ (1/31)", "Card": "Unionbank Rewards", "Principal": 80755.00, "Tenor": "31 mos", "Monthly": 2605.00},
-            {"StartDate": "7/9/2026", "Item": "INSTL C2G MBOA (tatay) (2/22)", "Card": "Metrobank Titanium", "Principal": 122672.44, "Tenor": "22 mos", "Monthly": 5576.02},
-            {"StartDate": "7/9/2026", "Item": "INSTL C2G MBOA (kuya jaypard) (2/3)", "Card": "Metrobank Titanium", "Principal": 5300.01, "Tenor": "3 mos", "Monthly": 1766.67},
-        ])
-        outside_df = pd.DataFrame([
-            {"Date": "8/10/2026", "Category": "Market / Palengke Supplies", "Description": "Meat and Vegetables", "Amount": 2500.00},
-            {"Date": "8/12/2026", "Category": "Weekly Baon & Allowance", "Description": "Baon for school/office", "Amount": 1000.00},
-        ])
-        return cards_df, tx_df, inst_df, outside_df
+        daddy_df = conn.read(worksheet="Daddy")
+    except Exception:
+        daddy_df = pd.DataFrame(columns=["Date", "Items", "Amount", "Notes"])
+    try:
+        payments_df = conn.read(worksheet="Payments")
+    except Exception:
+        payments_df = pd.DataFrame(columns=["Month", "Year", "Card", "Status", "Timestamp"])
+    return cards_df, tx_df, inst_df, daddy_df, payments_df
 
-cards_df, tx_df, inst_df, outside_df = load_data()
+try:
+    cards_df, tx_df, inst_df, daddy_df, payments_df = load_all_data()
+except Exception as e:
+    st.error(f"⚠️ Error loading Google Sheets: {e}")
+    st.stop()
 
-# --- APP HEADER ---
-st.markdown("<h1 style='color: #ffffff;'>💳 ATeam Credit Card Expenses Tracker</h1>", unsafe_allow_html=True)
 
-# --- 1. TOP BILLING PERIOD SELECTOR ---
-months_list = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+# 3. HELPER FUNCTIONS FOR CUTOFF & BILLING CALCULATIONS
+def parse_day(val):
+    """Extracts numeric day from string like '22nd of the month' or integer 22."""
+    if pd.isna(val):
+        return 1
+    val_str = str(val).lower().replace("st", "").replace("nd", "").replace("rd", "").replace("th", "")
+    nums = [int(s) for s in val_str.split() if s.isdigit()]
+    return nums[0] if nums else 1
 
-col_m, col_y = st.columns(2)
-with col_m:
-    selected_month = st.selectbox("Select Month", months_list, index=7)
-with col_y:
-    selected_year = st.selectbox("Select Year", [2025, 2026, 2027], index=1)
-
-# Interactive State for Display #2
-if "show_display_2" not in st.session_state:
-    st.session_state.show_display_2 = False
-
-# Clickable Due Metric Cards
-c1, c2 = st.columns(2)
-with c1:
-    if st.button(f"🗓️ Due for {selected_month} 15th: ₱43,818.25\n\n(Click to Toggle Breakdown)", type="primary", use_container_width=True):
-        st.session_state.show_display_2 = not st.session_state.show_display_2
-
-with c2:
-    if st.button(f"🗓️ Due for {selected_month} 30th: ₱25,169.08\n\n(Click to Toggle Breakdown)", type="primary", use_container_width=True):
-        st.session_state.show_display_2 = not st.session_state.show_display_2
-
-st.divider()
-
-# --- DISPLAY #2 (DYNAMIC EXPANDABLE TRANSACTION BREAKDOWN) ---
-if st.session_state.show_display_2:
-    st.markdown(f"<div class='section-title'>📋 Display #2: All Transactions & Installment Summary for {selected_month} {selected_year}</div>", unsafe_allow_html=True)
+def calculate_billing_payout(tx_date, cutoff_day, pay_period):
+    """
+    Determines the exact payout month & year for a transaction based on cutoff day.
+    Example: Cutoff 22nd, Pay Period 15th.
+    Purchased Jul 23 -> Misses Jul 22 cutoff -> Billed in Aug statement -> Due on Sept 15 Payout.
+    """
+    if pd.isna(tx_date):
+        return None, None
     
-    d1, d2 = st.columns(2)
-    with d1:
-        st.subheader("🧾 Statement Expenses History")
-        st.dataframe(tx_df, use_container_width=True)
-    with d2:
-        st.subheader("🔄 Active Installments in this Period")
-        st.dataframe(inst_df, use_container_width=True)
+    if isinstance(tx_date, str):
+        tx_date = pd.to_datetime(tx_date, errors="coerce")
+    
+    if pd.isna(tx_date):
+        return None, None
+
+    year = tx_date.year
+    month = tx_date.month
+    day = tx_date.day
+
+    # If transaction date is after cutoff day, move to next billing month
+    if day > cutoff_day:
+        month += 1
+        if month > 12:
+            month = 1
+            year += 1
+
+    # Add payout delay (15th payout is due in month + 1 after cutoff month)
+    # e.g., Cutoff Jul 22 -> Next cutoff Aug 22 -> Due Sept 15
+    if "15" in str(pay_period):
+        month += 1
+        if month > 12:
+            month = 1
+            year += 1
+
+    return month, year
+
+
+# 4. SIDEBAR NAVIGATION
+st.sidebar.title("📌 Navigation")
+page = st.sidebar.radio("Go to", ["💳 Credit Cards", "📜 Daddy List"])
+
+
+# ==========================================
+# PAGE 1: CREDIT CARDS
+# ==========================================
+if page == "💳 Credit Cards":
+    st.title("💳 Credit Cards Tracker")
+
+    # --- Billing Period Selection ---
+    col_m, col_y = st.columns(2)
+    months_map = {
+        "January": 1, "February": 2, "March": 3, "April": 4, 
+        "May": 5, "June": 6, "July": 7, "August": 8, 
+        "September": 9, "October": 10, "November": 11, "December": 12
+    }
+    months_reverse = {v: k for k, v in months_map.items()}
+
+    with col_m:
+        sel_month_name = st.selectbox("Select Billing Month", list(months_map.keys()), index=8) # Default Sept
+        sel_month = months_map[sel_month_name]
+    with col_y:
+        sel_year = st.selectbox("Select Billing Year", [2025, 2026, 2027], index=1)
+
+    # --- Calculate Statement Dues based on Cutoff Rules ---
+    # Merge Card details with Transactions
+    tx_df_calc = tx_df.copy()
+    if not tx_df_calc.empty and "Card" in tx_df_calc.columns:
+        tx_df_calc = tx_df_calc.merge(cards_df, left_on="Card", right_on="Card Name", how="left")
+        
+        # Parse Cutoff Day
+        tx_df_calc["Cutoff_Day"] = tx_df_calc["Billing Period"].apply(parse_day)
+        tx_df_calc["Tx_Date"] = pd.to_datetime(tx_df_calc["Date"], errors="coerce")
+        
+        # Calculate Payout Month & Year
+        tx_df_calc[["Payout_Month", "Payout_Year"]] = tx_df_calc.apply(
+            lambda row: pd.Series(calculate_billing_payout(row["Tx_Date"], row["Cutoff_Day"], row["Pay Period"])),
+            axis=1
+        )
+        
+        # Clean Amount column to float
+        tx_df_calc["Clean_Amount"] = (
+            tx_df_calc["Amount"].astype(str)
+            .str.replace("₱", "", regex=False)
+            .str.replace(",", "", regex=False)
+            .astype(float)
+        )
+        
+        # Filter for selected period
+        current_period_tx = tx_df_calc[
+            (tx_df_calc["Payout_Month"] == sel_month) & 
+            (tx_df_calc["Payout_Year"] == sel_year)
+        ]
+    else:
+        current_period_tx = pd.DataFrame()
+
+    # Calculate Totals for 15th & 30th
+    if not current_period_tx.empty:
+        due_15th = current_period_tx[current_period_tx["Pay Period"].astype(str).str.contains("15")]["Clean_Amount"].sum()
+        due_30th = current_period_tx[current_period_tx["Pay Period"].astype(str).str.contains("30")]["Clean_Amount"].sum()
+    else:
+        due_15th = 0.0
+        due_30th = 0.0
+
+    # --- Clickable Summary Buttons ---
+    st.markdown("#### 🗓️ Payout Dues Summary")
+    c1, c2 = st.columns(2)
+    
+    if "filter_payout" not in st.session_state:
+        st.session_state.filter_payout = "All"
+
+    with c1:
+        if st.button(f"🗓️ Due for {sel_month_name} 15th: ₱{due_15th:,.2f}", use_container_width=True, type="primary"):
+            st.session_state.filter_payout = "15th"
+    with c2:
+        if st.button(f"🗓️ Due for {sel_month_name} 30th: ₱{due_30th:,.2f}", use_container_width=True, type="primary"):
+            st.session_state.filter_payout = "30th"
+
     st.divider()
 
-# --- 2. MAIN DASHBOARD TABLE ---
-st.markdown("<div class='section-title'>📊 Credit Card Dashboard & Status</div>", unsafe_allow_html=True)
+    # --- Credit Cards Master Table ---
+    st.markdown("### 📊 Credit Cards Status")
+    st.dataframe(cards_df, use_container_width=True, hide_index=True)
 
-# Display styled main table
-st.dataframe(cards_df, use_container_width=True)
+    st.divider()
 
-st.divider()
-
-# --- 3. EXPENSE ENTRY FORM ---
-st.markdown("<div class='section-title'>📝 Log Expenses & Installments</div>", unsafe_allow_html=True)
-
-tab1, tab2, tab3 = st.tabs(["➕ Log CC Daily Expense", "🔄 Register CC Installment", "🛒 Log Outside CC (Utang ni Daddy)"])
-
-with tab1:
-    with st.form("form_daily_tx", clear_on_submit=True):
-        f1, f2 = st.columns(2)
-        tx_date = f1.date_input("Date of Purchase")
-        card_col = cards_df.columns[0] if not cards_df.empty else "Credit Card"
-        tx_card = f2.selectbox("Credit Card", cards_df[card_col].dropna().unique() if card_col in cards_df.columns else ["BPI Gold", "Unionbank Rewards", "RCBC Preferred Airmiles"])
-        tx_cat = f1.selectbox("Category", ["🍽️ Dining & Food", "🛒 Groceries", "⛽ Gas & Travel", "💊 Health & Medical", "🛍️ Shopping", "📦 Misc"])
-        tx_amt = f2.number_input("Amount (PHP)", min_value=0.0, step=50.0)
-        tx_notes = st.text_input("Notes (Optional)")
+    # --- Transactions for the Selected Period ---
+    st.markdown(f"### 📑 Transactions for {sel_month_name} {sel_year}")
+    
+    if not current_period_tx.empty:
+        display_tx = current_period_tx
+        if st.session_state.filter_payout != "All":
+            display_tx = display_tx[display_tx["Pay Period"].astype(str).str.contains(st.session_state.filter_payout)]
         
-        if st.form_submit_button("Save Expense", type="primary", use_container_width=True):
-            new_row = pd.DataFrame([{"Date": str(tx_date), "Card": tx_card, "Category": tx_cat, "Amount": tx_amt, "Notes": tx_notes}])
-            try:
+        st.dataframe(
+            display_tx[["Date", "Card", "Category", "Amount", "Notes", "Pay Period"]],
+            use_container_width=True,
+            hide_index=True
+        )
+    else:
+        st.info("No transactions found for this billing period.")
+
+    st.divider()
+
+    # --- CC Entry Forms ---
+    st.markdown("### 📝 Add New CC Entry")
+    t1, t2 = st.tabs(["➕ Daily Expense", "🔄 Installment"])
+    
+    card_opts = cards_df["Card Name"].dropna().unique().tolist() if "Card Name" in cards_df.columns else []
+
+    with t1:
+        with st.form("form_daily_expense", clear_on_submit=True):
+            f1, f2 = st.columns(2)
+            d_date = f1.date_input("Date")
+            d_card = f2.selectbox("Card", card_opts)
+            f3, f4 = st.columns(2)
+            d_cat = f3.selectbox("Category", ["Dining & Food", "Groceries", "Utilities & Bills", "Health & Medical", "Gas & Travel", "Shopping & Clothes", "Miscellaneous"])
+            d_amt = f4.number_input("Amount (PHP)", min_value=0.0, step=50.0)
+            d_notes = st.text_input("Notes")
+
+            if st.form_submit_button("Save Expense", type="primary", use_container_width=True):
+                new_row = pd.DataFrame([{
+                    "Date": d_date.strftime("%m/%d/%Y"),
+                    "Card": d_card,
+                    "Category": d_cat,
+                    "Amount": f"₱{d_amt:,.2f}",
+                    "Notes": d_notes
+                }])
                 updated = pd.concat([tx_df, new_row], ignore_index=True)
                 conn.update(worksheet="Transactions", data=updated)
-                st.success("Expense saved successfully!")
+                st.success("Expense added successfully!")
                 st.cache_data.clear()
-            except:
-                st.success("Logged locally!")
+                st.rerun()
 
-with tab2:
-    with st.form("form_inst", clear_on_submit=True):
-        f1, f2 = st.columns(2)
-        inst_date = f1.date_input("Start Date")
-        inst_card = f2.selectbox("Credit Card", ["BPI Gold", "Unionbank Rewards", "RCBC Preferred Airmiles", "Metrobank Titanium"])
-        inst_item = st.text_input("Item Description")
-        i1, i2, i3 = st.columns(3)
-        prin = i1.number_input("Principal", min_value=0.0)
-        tenor = i2.number_input("Tenor (Months)", min_value=1, value=12)
-        monthly = i3.number_input("Monthly Due", min_value=0.0)
-        
-        if st.form_submit_button("Register Installment", type="primary", use_container_width=True):
-            new_inst = pd.DataFrame([{"StartDate": str(inst_date), "Item": inst_item, "Card": inst_card, "Principal": prin, "Tenor": tenor, "Monthly": monthly}])
-            try:
+    with t2:
+        with st.form("form_inst_expense", clear_on_submit=True):
+            f1, f2 = st.columns(2)
+            i_owner = f1.selectbox("Owner", ["A-Team", "Tatay", "Kuya Jaypard", "Daddy"])
+            i_card = f2.selectbox("Card", card_opts, key="inst_card")
+            i_item = st.text_input("Item Description")
+            p1, p2, p3 = st.columns(3)
+            i_prin = p1.number_input("Principal (PHP)", min_value=0.0)
+            i_tenor = p2.number_input("Tenor (Months)", min_value=1, value=12)
+            i_monthly = p3.number_input("Monthly Payment (PHP)", min_value=0.0)
+            i_start = st.date_input("Start Date")
+
+            if st.form_submit_button("Register Installment", type="primary", use_container_width=True):
+                new_inst = pd.DataFrame([{
+                    "Owner": i_owner,
+                    "Item": i_item,
+                    "Card": i_card,
+                    "Principal": f"₱{i_prin:,.2f}",
+                    "Tenor": i_tenor,
+                    "Monthly_Payment": f"₱{i_monthly:,.2f}",
+                    "Start_Date": i_start.strftime("%m/%d/%Y")
+                }])
                 updated = pd.concat([inst_df, new_inst], ignore_index=True)
                 conn.update(worksheet="Installments", data=updated)
                 st.success("Installment registered successfully!")
                 st.cache_data.clear()
-            except:
-                st.success("Registered locally!")
+                st.rerun()
 
-with tab3:
-    with st.form("form_outside", clear_on_submit=True):
-        st.caption("📌 **Note:** Excluded from Credit Card statement totals. For Daddy/Mommy tracking only.")
-        o1, o2 = st.columns(2)
-        out_date = o1.date_input("Date")
-        out_cat = o2.selectbox("Category", ["Market / Palengke Supplies", "Weekly Baon & Allowance", "Personal Loan", "Other Cash Expense"])
-        out_desc = st.text_input("Description / Item")
-        out_amt = st.number_input("Amount (PHP)", min_value=0.0, step=50.0)
-        
-        if st.form_submit_button("Save Outside CC Expense", type="primary", use_container_width=True):
-            new_out = pd.DataFrame([{"Date": str(out_date), "Category": out_cat, "Description": out_desc, "Amount": out_amt}])
-            try:
-                updated = pd.concat([outside_df, new_out], ignore_index=True)
-                conn.update(worksheet="Outside_CC", data=updated)
-                st.success("Outside CC expense logged successfully!")
-                st.cache_data.clear()
-            except:
-                st.success("Logged locally!")
 
-st.divider()
+# ==========================================
+# PAGE 2: DADDY LIST
+# ==========================================
+elif page == "📜 Daddy List":
+    st.title("📜 Utang ni Daddy kay Mommy Tracker")
+    st.caption("Dedicated tracking view for non-CC/cash expenses, market runs, and personal cash items.")
 
-# --- 4. BOTTOM DEDICATED TRACKING PANELS ---
-b1, b2 = st.columns(2)
+    # Total Dues Metric
+    if not daddy_df.empty and "Amount" in daddy_df.columns:
+        clean_daddy_amt = (
+            daddy_df["Amount"].astype(str)
+            .str.replace("₱", "", regex=False)
+            .str.replace(",", "", regex=False)
+            .astype(float)
+        )
+        total_daddy_due = clean_daddy_amt.sum()
+        st.metric("Total Outstanding Balance", f"₱{total_daddy_due:,.2f}")
 
-with b1:
-    st.markdown("<div class='section-title'>🤝 Loans Summary (Tatay & Kuya Jaypard)</div>", unsafe_allow_html=True)
-    st.caption("Tracks monthly dues and remaining tenor balance.")
-    
-    if not inst_df.empty and "Item" in inst_df.columns:
-        loans_mask = inst_df["Item"].str.contains("tatay|jaypard|MBOA", case=False, na=False)
-        st.dataframe(inst_df[loans_mask], use_container_width=True)
-    else:
-        st.info("No active loan records found.")
+    st.divider()
 
-with b2:
-    st.markdown("<div class='section-title'>📜 Utang ni Daddy kay Mommy (Outside CC)</div>", unsafe_allow_html=True)
-    st.caption("Monitoring List for Cash, Market, Baon & Other Non-CC Expenses (Excluded from CC totals!)")
-    
-    st.dataframe(outside_df, use_container_width=True)
-    
-    if not outside_df.empty and "Amount" in outside_df.columns:
-        total_outside = pd.to_numeric(outside_df["Amount"], errors="coerce").sum()
-        st.metric("Total Outside Cash Expense", f"₱{total_outside:,.2f}")
+    # Daddy Transactions Table
+    st.markdown("### 📋 Expenses List")
+    st.dataframe(daddy_df, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # Daddy Entry Form
+    st.markdown("### ➕ Add Entry for Daddy")
+    with st.form("form_daddy_entry", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        d_date = c1.date_input("Date")
+        d_amt = c2.number_input("Amount (PHP)", min_value=0.0, step=50.0)
+        d_item = st.text_input("Item Description / Expense")
+        d_notes = st.text_input("Notes (Optional)")
+
+        if st.form_submit_button("Save Entry", type="primary", use_container_width=True):
+            new_entry = pd.DataFrame([{
+                "Date": d_date.strftime("%m/%d/%Y"),
+                "Items": d_item,
+                "Amount": f"₱{d_amt:,.2f}",
+                "Notes": d_notes
+            }])
+            updated = pd.concat([daddy_df, new_entry], ignore_index=True)
+            conn.update(worksheet="Daddy", data=updated)
+            st.success("Entry added successfully!")
+            st.cache_data.clear()
+            st.rerun()
