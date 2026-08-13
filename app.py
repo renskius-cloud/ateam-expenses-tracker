@@ -10,32 +10,61 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- BACKGROUND & FROSTED GLASS SIDEBAR INJECTION ---
+# --- BRIGHT FROSTED GLASS THEME INJECTION ---
 bg_img_url = "https://lh3.googleusercontent.com/d/1qDaExmKTO9-0ZBF5thIM2EA0eTrSd6Zd"
 
 st.markdown(f"""
     <style>
-    /* Main Page Background */
+    /* Main Page Bright Background */
     .stApp {{
-        background: linear-gradient(rgba(14, 17, 23, 0.78), rgba(14, 17, 23, 0.78)), url("{bg_img_url}");
+        background: url("{bg_img_url}");
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
         background-attachment: fixed;
     }}
 
-    /* Frosted White Glass Sidebar */
-    [data-testid="stSidebar"] {{
-        background-color: rgba(255, 255, 255, 0.12) !important;
-        backdrop-filter: blur(16px) saturate(180%) !important;
-        -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.25) !important;
-        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1) !important;
+    /* Global Dark Text Color for High Contrast on Light Glass */
+    .stApp, .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6 {{
+        color: #0F172A !important;
     }}
 
-    /* Sidebar Text & Label Styling for High Readability */
-    [data-testid="stSidebar"] * {{
+    /* Frosted White Glass Sidebar */
+    [data-testid="stSidebar"] {{
+        background-color: rgba(255, 255, 255, 0.45) !important;
+        backdrop-filter: blur(16px) saturate(180%) !important;
+        -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.4) !important;
+    }}
+
+    /* Frosted White Containers, Forms, Tables, and Expanders */
+    div[data-testid="stDataFrame"], 
+    div[data-testid="stForm"], 
+    .stAlert, 
+    div[data-testid="stExpander"] {{
+        background-color: rgba(255, 255, 255, 0.78) !important;
+        backdrop-filter: blur(14px) !important;
+        -webkit-backdrop-filter: blur(14px) !important;
+        border-radius: 12px !important;
+        border: 1px solid rgba(255, 255, 255, 0.6) !important;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.12) !important;
+        padding: 12px !important;
+    }}
+
+    /* Input Fields Styling */
+    input, select, textarea, div[role="combobox"] {{
+        background-color: rgba(255, 255, 255, 0.95) !important;
+        border-radius: 8px !important;
+        border: 1px solid #CBD5E1 !important;
+        color: #0F172A !important;
+    }}
+
+    /* Primary Button Styling */
+    button[type="primary"] {{
+        background-color: #2563EB !important;
         color: #FFFFFF !important;
+        border-radius: 8px !important;
+        border: none !important;
     }}
     </style>
 """, unsafe_allow_html=True)
