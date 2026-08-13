@@ -50,6 +50,29 @@ def parse_day(val):
     nums = [int(s) for s in str(val).replace("th","").replace("st","").replace("nd","").replace("rd","").split() if s.isdigit()]
     return nums[0] if nums else 1
 
+def calculate_tenor_progress(start_date_str, tenor_total, sel_month, sel_year):
+    """Calculates active month / total tenor (e.g. 2/6). Returns (is_active, progress_str)"""
+    if pd.isna(start_date_str) or not start_date_str:
+        return True, f"1/{tenor_total}"
+    try:
+        dt = pd.to_datetime(start_date_str, errors="coerce")
+        if pd.isna(dt):
+            return True, f"1/{tenor_total}"
+        
+        start_m = dt.month
+        start_y = dt.year
+        
+        elapsed_months = (sel_year - start_y) * 12 + (sel_month - start_m) + 1
+        
+        if elapsed_months < 1:
+            return False, f"0/{tenor_total}" # Not started yet
+        elif elapsed_months > tenor_total:
+            return False, f"Completed ({tenor_total}/{tenor_total})" # Fully paid
+        else:
+            return True, f"{elapsed_months}/{tenor_total}"
+    except:
+        return True, f"1/{tenor_total}"
+
 # 4. SIDEBAR NAVIGATION
 st.sidebar.title("📌 Navigation")
 page = st.sidebar.radio("Go to", ["💳 Credit Cards", "📜 Daddy List"])
@@ -108,7 +131,7 @@ if page == "💳 Credit Cards":
         card_windows[card_name] = (stmt_start_date, stmt_end_date)
         stmt_range_str = f"{stmt_start_date.strftime('%b %d')} – {stmt_end_date.strftime('%b %d')}"
 
-        # 1. Sum Installments split by Owner
+        # 1. Sum ACTIVE Installments split by Owner
         inst_ours = 0.0
         inst_others = 0.0
         
@@ -117,11 +140,16 @@ if page == "💳 Credit Cards":
             for _, row in card_insts.iterrows():
                 m_amt = clean_num(row.get("Monthly_Payment", 0))
                 owner = str(row.get("Owner", "")).strip().lower()
+                start_d = row.get("Start_Date", "")
+                t_total = clean_num(row.get("Tenor", 1))
                 
-                if owner in ["tatay", "kuya jaypard"]:
-                    inst_others += m_amt
-                else:
-                    inst_ours += m_amt
+                is_active, _ = calculate_tenor_progress(start_d, int(t_total), sel_month, sel_year)
+                
+                if is_active:
+                    if owner in ["tatay", "kuya jaypard"]:
+                        inst_others += m_amt
+                    else:
+                        inst_ours += m_amt
 
         # 2. Sum Daily Transactions inside statement window
         tx_sum = 0.0
@@ -173,7 +201,7 @@ if page == "💳 Credit Cards":
     tot_15th_grand = tot_15th_tx + tot_15th_inst_ours + tot_15th_inst_others
     tot_30th_grand = tot_30th_tx + tot_30th_inst_ours + tot_30th_inst_others
 
-    # --- CLICKABLE PAYOUT DUES BUTTONS WITH CLEAN SUB-BREAKDOWNS ---
+    # --- CLICKABLE PAYOUT DUES BUTTONS WITH SUB-BREAKDOWNS ---
     st.markdown("#### 🗓️ Payout Dues Summary *(Click to view tables)*")
     
     if "selected_payout" not in st.session_state:
@@ -203,7 +231,7 @@ if page == "💳 Credit Cards":
         if st.button("❌ Close View", use_container_width=True):
             st.session_state.selected_payout = None
 
-    # --- DYNAMIC BREAKDOWN DISPLAY WHEN CLICKED (TABLES ONLY) ---
+    # --- DYNAMIC BREAKDOWN DISPLAY WHEN CLICKED ---
     if st.session_state.selected_payout:
         payout_tag = st.session_state.selected_payout
         st.info(f"📋 **Showing Transaction & Installment Breakdown for {sel_month_name} {payout_tag} Payout**")
@@ -227,10 +255,19 @@ if page == "💳 Credit Cards":
                     in_period_txs.append(match_tx)
             filtered_tx = pd.concat(in_period_txs, ignore_index=True) if in_period_txs else pd.DataFrame()
 
-        # Filter Installments
+        # Filter & Annotate Installments with Progress (e.g. 2/6)
         filtered_inst = pd.DataFrame()
         if not inst_df.empty and "Card" in inst_df.columns:
-            filtered_inst = inst_df[inst_df["Card"].astype(str).str.strip().isin(payout_cards)].copy()
+            inst_copy = inst_df[inst_df["Card"].astype(str).str.strip().isin(payout_cards)].copy()
+            if not inst_copy.empty:
+                progress_list = []
+                for _, row in inst_copy.iterrows():
+                    s_d = row.get("Start_Date", "")
+                    t_tot = int(clean_num(row.get("Tenor", 1)))
+                    _, prog_str = calculate_tenor_progress(s_d, t_tot, sel_month, sel_year)
+                    progress_list.append(prog_str)
+                inst_copy["Tenor_Progress"] = progress_list
+                filtered_inst = inst_copy
 
         d1, d2 = st.columns(2)
         
@@ -245,7 +282,8 @@ if page == "💳 Credit Cards":
         with d2:
             st.markdown(f"##### 🔄 Monthly Installments ({payout_tag} Cards)")
             if not filtered_inst.empty:
-                st.dataframe(filtered_inst, use_container_width=True, hide_index=True)
+                display_inst_cols = [c for c in ["Owner", "Item", "Card", "Monthly_Payment", "Tenor_Progress", "Start_Date"] if c in filtered_inst.columns]
+                st.dataframe(filtered_inst[display_inst_cols], use_container_width=True, hide_index=True)
             else:
                 st.write("No installments found.")
 
@@ -254,6 +292,24 @@ if page == "💳 Credit Cards":
     # --- CREDIT CARDS DASHBOARD TABLE ---
     st.markdown("### 📊 Credit Card Dashboard & Status")
     st.dataframe(display_dashboard_df, use_container_width=True, hide_index=True)
+
+    # --- MARK AS PAID SECTION ---
+    with st.expander("✅ Mark Card Payment Status"):
+        p_col1, p_col2 = st.columns([3, 1])
+        card_to_pay = p_col1.selectbox("Select Card to Mark as Paid", cards_df["Card Name"].dropna().tolist())
+        if p_col2.button("Mark as PAID", type="primary", use_container_width=True):
+            new_payment = pd.DataFrame([{
+                "Month": str(sel_month),
+                "Year": str(sel_year),
+                "Card": card_to_pay,
+                "Status": "PAID",
+                "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }])
+            updated_payments = pd.concat([payments_df, new_payment], ignore_index=True)
+            conn.update(worksheet="Payments", data=updated_payments)
+            st.success(f"Marked {card_to_pay} as PAID for {sel_month_name} {sel_year}!")
+            st.cache_data.clear()
+            st.rerun()
 
     st.divider()
 
