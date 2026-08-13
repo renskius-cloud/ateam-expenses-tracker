@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, date
+from datetime import datetime, timedelta
 from streamlit_gsheets import GSheetsConnection
 
 # 1. PAGE SETUP
@@ -14,7 +14,7 @@ st.set_page_config(
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 @st.cache_data(ttl=5)
-def load_all_data():
+def load_data():
     cards_df = conn.read(worksheet="Cards")
     tx_df = conn.read(worksheet="Transactions")
     inst_df = conn.read(worksheet="Installments")
@@ -29,57 +29,26 @@ def load_all_data():
     return cards_df, tx_df, inst_df, daddy_df, payments_df
 
 try:
-    cards_df, tx_df, inst_df, daddy_df, payments_df = load_all_data()
+    cards_df, tx_df, inst_df, daddy_df, payments_df = load_data()
 except Exception as e:
-    st.error(f"⚠️ Error loading Google Sheets: {e}")
+    st.error(f"⚠️ Error loading data: {e}")
     st.stop()
 
+# 3. HELPER FUNCTIONS FOR CLEAN NUMBERS & DATES
+def clean_num(val):
+    if pd.isna(val):
+        return 0.0
+    s = str(val).replace("₱", "").replace(",", "").strip()
+    try:
+        return float(s)
+    except:
+        return 0.0
 
-# 3. HELPER FUNCTIONS FOR CUTOFF & BILLING CALCULATIONS
 def parse_day(val):
-    """Extracts numeric day from string like '22nd of the month' or integer 22."""
     if pd.isna(val):
         return 1
-    val_str = str(val).lower().replace("st", "").replace("nd", "").replace("rd", "").replace("th", "")
-    nums = [int(s) for s in val_str.split() if s.isdigit()]
+    nums = [int(s) for s in str(val).replace("th","").replace("st","").replace("nd","").replace("rd","").split() if s.isdigit()]
     return nums[0] if nums else 1
-
-def calculate_billing_payout(tx_date, cutoff_day, pay_period):
-    """
-    Determines the exact payout month & year for a transaction based on cutoff day.
-    Example: Cutoff 22nd, Pay Period 15th.
-    Purchased Jul 23 -> Misses Jul 22 cutoff -> Billed in Aug statement -> Due on Sept 15 Payout.
-    """
-    if pd.isna(tx_date):
-        return None, None
-    
-    if isinstance(tx_date, str):
-        tx_date = pd.to_datetime(tx_date, errors="coerce")
-    
-    if pd.isna(tx_date):
-        return None, None
-
-    year = tx_date.year
-    month = tx_date.month
-    day = tx_date.day
-
-    # If transaction date is after cutoff day, move to next billing month
-    if day > cutoff_day:
-        month += 1
-        if month > 12:
-            month = 1
-            year += 1
-
-    # Add payout delay (15th payout is due in month + 1 after cutoff month)
-    # e.g., Cutoff Jul 22 -> Next cutoff Aug 22 -> Due Sept 15
-    if "15" in str(pay_period):
-        month += 1
-        if month > 12:
-            month = 1
-            year += 1
-
-    return month, year
-
 
 # 4. SIDEBAR NAVIGATION
 st.sidebar.title("📌 Navigation")
@@ -99,102 +68,114 @@ if page == "💳 Credit Cards":
         "May": 5, "June": 6, "July": 7, "August": 8, 
         "September": 9, "October": 10, "November": 11, "December": 12
     }
-    months_reverse = {v: k for k, v in months_map.items()}
 
     with col_m:
-        sel_month_name = st.selectbox("Select Billing Month", list(months_map.keys()), index=8) # Default Sept
+        sel_month_name = st.selectbox("Select Billing Period Month", list(months_map.keys()), index=7) # August
         sel_month = months_map[sel_month_name]
     with col_y:
-        sel_year = st.selectbox("Select Billing Year", [2025, 2026, 2027], index=1)
+        sel_year = st.selectbox("Select Billing Period Year", [2025, 2026, 2027], index=1)
 
-    # --- Calculate Statement Dues based on Cutoff Rules ---
-    # Merge Card details with Transactions
-    tx_df_calc = tx_df.copy()
-    if not tx_df_calc.empty and "Card" in tx_df_calc.columns:
-        tx_df_calc = tx_df_calc.merge(cards_df, left_on="Card", right_on="Card Name", how="left")
-        
-        # Parse Cutoff Day
-        tx_df_calc["Cutoff_Day"] = tx_df_calc["Billing Period"].apply(parse_day)
-        tx_df_calc["Tx_Date"] = pd.to_datetime(tx_df_calc["Date"], errors="coerce")
-        
-        # Calculate Payout Month & Year
-        tx_df_calc[["Payout_Month", "Payout_Year"]] = tx_df_calc.apply(
-            lambda row: pd.Series(calculate_billing_payout(row["Tx_Date"], row["Cutoff_Day"], row["Pay Period"])),
-            axis=1
-        )
-        
-        # Clean Amount column to float
-        tx_df_calc["Clean_Amount"] = (
-            tx_df_calc["Amount"].astype(str)
-            .str.replace("₱", "", regex=False)
-            .str.replace(",", "", regex=False)
-            .astype(float)
-        )
-        
-        # Filter for selected period
-        current_period_tx = tx_df_calc[
-            (tx_df_calc["Payout_Month"] == sel_month) & 
-            (tx_df_calc["Payout_Year"] == sel_year)
-        ]
-    else:
-        current_period_tx = pd.DataFrame()
+    # --- STATEMENT WINDOW & DASHBOARD COMPUTATIONS ---
+    dashboard_rows = []
+    tot_15th = 0.0
+    tot_30th = 0.0
 
-    # Calculate Totals for 15th & 30th
-    if not current_period_tx.empty:
-        due_15th = current_period_tx[current_period_tx["Pay Period"].astype(str).str.contains("15")]["Clean_Amount"].sum()
-        due_30th = current_period_tx[current_period_tx["Pay Period"].astype(str).str.contains("30")]["Clean_Amount"].sum()
-    else:
-        due_15th = 0.0
-        due_30th = 0.0
+    for _, card in cards_df.iterrows():
+        card_name = card.get("Card Name", "")
+        pay_period = str(card.get("Pay Period", ""))
+        cutoff_day = parse_day(card.get("Billing Period", 1))
 
-    # --- Clickable Summary Buttons ---
+        # Determine Statement Range Dates for selected Payout Month/Year
+        # e.g., For August 15th Payout -> Statement ends in July
+        # e.g., For August 30th Payout -> Statement ends in August
+        if "15" in pay_period:
+            stmt_end_month = sel_month - 1 if sel_month > 1 else 12
+            stmt_end_year = sel_year if sel_month > 1 else sel_year - 1
+        else:
+            stmt_end_month = sel_month
+            stmt_end_year = sel_year
+
+        stmt_end_date = datetime(stmt_end_year, stmt_end_month, cutoff_day)
+        
+        # Statement start date is previous month's cutoff + 1 day
+        prev_m = stmt_end_month - 1 if stmt_end_month > 1 else 12
+        prev_y = stmt_end_year if stmt_end_month > 1 else stmt_end_year - 1
+        stmt_start_date = datetime(prev_y, prev_m, cutoff_day) + timedelta(days=1)
+
+        stmt_range_str = f"{stmt_start_date.strftime('%b %d')} – {stmt_end_date.strftime('%b %d')}"
+
+        # 1. Sum Installments for this card
+        inst_sum = 0.0
+        if not inst_df.empty and "Card" in inst_df.columns:
+            card_insts = inst_df[inst_df["Card"].astype(str).str.strip() == card_name.strip()]
+            inst_sum = card_insts["Monthly_Payment"].apply(clean_num).sum()
+
+        # 2. Sum Daily Transactions in Statement Window for this card
+        tx_sum = 0.0
+        if not tx_df.empty and "Card" in tx_df.columns:
+            card_txs = tx_df[tx_df["Card"].astype(str).str.strip() == card_name.strip()].copy()
+            if not card_txs.empty:
+                card_txs["Parsed_Date"] = pd.to_datetime(card_txs["Date"], errors="coerce")
+                in_range_tx = card_txs[
+                    (card_txs["Parsed_Date"] >= stmt_start_date) & 
+                    (card_txs["Parsed_Date"] <= stmt_end_date + timedelta(hours=23, minutes=59))
+                ]
+                tx_sum = in_range_tx["Amount"].apply(clean_num).sum()
+
+        total_card_due = inst_sum + tx_sum
+
+        # Check Payment Status from Payments tab
+        status = "Unpaid"
+        if not payments_df.empty:
+            match_pay = payments_df[
+                (payments_df["Month"].astype(str) == str(sel_month)) &
+                (payments_df["Year"].astype(str) == str(sel_year)) &
+                (payments_df["Card"].astype(str).str.strip() == card_name.strip())
+            ]
+            if not match_pay.empty:
+                status = match_pay.iloc[0].get("Status", "PAID")
+
+        if total_card_due == 0:
+            status = "No Due"
+
+        if "15" in pay_period:
+            tot_15th += total_card_due
+        else:
+            tot_30th += total_card_due
+
+        dashboard_rows.append({
+            "Credit Card": card_name,
+            "Pay Period": pay_period,
+            "Statement / Billing Range": stmt_range_str,
+            "Total Amount Due": f"₱{total_card_due:,.2f}",
+            "Payment Status": status
+        })
+
+    display_dashboard_df = pd.DataFrame(dashboard_rows)
+
+    # --- CLICKABLE METRIC DUES ---
     st.markdown("#### 🗓️ Payout Dues Summary")
     c1, c2 = st.columns(2)
-    
-    if "filter_payout" not in st.session_state:
-        st.session_state.filter_payout = "All"
-
     with c1:
-        if st.button(f"🗓️ Due for {sel_month_name} 15th: ₱{due_15th:,.2f}", use_container_width=True, type="primary"):
-            st.session_state.filter_payout = "15th"
+        st.metric(label=f"🗓️ Due for {sel_month_name} 15th", value=f"₱{tot_15th:,.2f}")
     with c2:
-        if st.button(f"🗓️ Due for {sel_month_name} 30th: ₱{due_30th:,.2f}", use_container_width=True, type="primary"):
-            st.session_state.filter_payout = "30th"
+        st.metric(label=f"🗓️ Due for {sel_month_name} 30th", value=f"₱{tot_30th:,.2f}")
 
     st.divider()
 
-    # --- Credit Cards Master Table ---
-    st.markdown("### 📊 Credit Cards Status")
-    st.dataframe(cards_df, use_container_width=True, hide_index=True)
+    # --- CREDIT CARDS DASHBOARD TABLE ---
+    st.markdown("### 📊 Credit Card Dashboard & Status")
+    st.dataframe(display_dashboard_df, use_container_width=True, hide_index=True)
 
     st.divider()
 
-    # --- Transactions for the Selected Period ---
-    st.markdown(f"### 📑 Transactions for {sel_month_name} {sel_year}")
-    
-    if not current_period_tx.empty:
-        display_tx = current_period_tx
-        if st.session_state.filter_payout != "All":
-            display_tx = display_tx[display_tx["Pay Period"].astype(str).str.contains(st.session_state.filter_payout)]
-        
-        st.dataframe(
-            display_tx[["Date", "Card", "Category", "Amount", "Notes", "Pay Period"]],
-            use_container_width=True,
-            hide_index=True
-        )
-    else:
-        st.info("No transactions found for this billing period.")
-
-    st.divider()
-
-    # --- CC Entry Forms ---
-    st.markdown("### 📝 Add New CC Entry")
-    t1, t2 = st.tabs(["➕ Daily Expense", "🔄 Installment"])
-    
+    # --- CC ENTRY FORMS ---
+    st.markdown("### 📝 Quick Entry Forms")
+    t1, t2 = st.tabs(["➕ Daily Expense", "🔄 Register Installment"])
     card_opts = cards_df["Card Name"].dropna().unique().tolist() if "Card Name" in cards_df.columns else []
 
     with t1:
-        with st.form("form_daily_expense", clear_on_submit=True):
+        with st.form("form_daily", clear_on_submit=True):
             f1, f2 = st.columns(2)
             d_date = f1.date_input("Date")
             d_card = f2.selectbox("Card", card_opts)
@@ -213,15 +194,15 @@ if page == "💳 Credit Cards":
                 }])
                 updated = pd.concat([tx_df, new_row], ignore_index=True)
                 conn.update(worksheet="Transactions", data=updated)
-                st.success("Expense added successfully!")
+                st.success("Expense saved successfully!")
                 st.cache_data.clear()
                 st.rerun()
 
     with t2:
-        with st.form("form_inst_expense", clear_on_submit=True):
+        with st.form("form_inst", clear_on_submit=True):
             f1, f2 = st.columns(2)
             i_owner = f1.selectbox("Owner", ["A-Team", "Tatay", "Kuya Jaypard", "Daddy"])
-            i_card = f2.selectbox("Card", card_opts, key="inst_card")
+            i_card = f2.selectbox("Card", card_opts, key="inst_card_sel")
             i_item = st.text_input("Item Description")
             p1, p2, p3 = st.columns(3)
             i_prin = p1.number_input("Principal (PHP)", min_value=0.0)
@@ -251,28 +232,18 @@ if page == "💳 Credit Cards":
 # ==========================================
 elif page == "📜 Daddy List":
     st.title("📜 Utang ni Daddy kay Mommy Tracker")
-    st.caption("Dedicated tracking view for non-CC/cash expenses, market runs, and personal cash items.")
 
-    # Total Dues Metric
     if not daddy_df.empty and "Amount" in daddy_df.columns:
-        clean_daddy_amt = (
-            daddy_df["Amount"].astype(str)
-            .str.replace("₱", "", regex=False)
-            .str.replace(",", "", regex=False)
-            .astype(float)
-        )
-        total_daddy_due = clean_daddy_amt.sum()
+        total_daddy_due = daddy_df["Amount"].apply(clean_num).sum()
         st.metric("Total Outstanding Balance", f"₱{total_daddy_due:,.2f}")
 
     st.divider()
 
-    # Daddy Transactions Table
     st.markdown("### 📋 Expenses List")
     st.dataframe(daddy_df, use_container_width=True, hide_index=True)
 
     st.divider()
 
-    # Daddy Entry Form
     st.markdown("### ➕ Add Entry for Daddy")
     with st.form("form_daddy_entry", clear_on_submit=True):
         c1, c2 = st.columns(2)
