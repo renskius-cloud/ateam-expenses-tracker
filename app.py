@@ -204,7 +204,7 @@ page = st.sidebar.radio("Go to", ["💳 Credit Cards", "📜 Daddy List"])
 # PAGE 1: CREDIT CARDS
 # ==========================================
 if page == "💳 Credit Cards":
-    st.title("💳 Credit Cards Tracker")
+    st.title("💳 A-Team CC Tracker")
 
     # --- Billing Period Selection ---
     col_m, col_y = st.columns(2)
