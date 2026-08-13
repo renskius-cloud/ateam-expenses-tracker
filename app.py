@@ -70,13 +70,14 @@ if page == "💳 Credit Cards":
     }
 
     with col_m:
-        sel_month_name = st.selectbox("Select Billing Period Month", list(months_map.keys()), index=7) # August
+        sel_month_name = st.selectbox("Select Billing Period Month", list(months_map.keys()), index=7) # August default
         sel_month = months_map[sel_month_name]
     with col_y:
         sel_year = st.selectbox("Select Billing Period Year", [2025, 2026, 2027], index=1)
 
     # --- STATEMENT WINDOW & DASHBOARD COMPUTATIONS ---
     dashboard_rows = []
+    card_windows = {} # Store calculated date ranges per card
     
     tot_15th_ours = 0.0
     tot_15th_others = 0.0
@@ -85,11 +86,13 @@ if page == "💳 Credit Cards":
     tot_30th_others = 0.0
 
     for _, card in cards_df.iterrows():
-        card_name = card.get("Card Name", "")
+        card_name = str(card.get("Card Name", "")).strip()
         pay_period = str(card.get("Pay Period", ""))
         cutoff_day = parse_day(card.get("Billing Period", 1))
 
-        # Determine Statement Range Dates for selected Payout Month/Year
+        # Statement end date:
+        # 15th Payout cards -> statement ends in prev month relative to payout
+        # 30th Payout cards -> statement ends in selected payout month
         if "15" in pay_period:
             stmt_end_month = sel_month - 1 if sel_month > 1 else 12
             stmt_end_year = sel_year if sel_month > 1 else sel_year - 1
@@ -104,14 +107,16 @@ if page == "💳 Credit Cards":
         prev_y = stmt_end_year if stmt_end_month > 1 else stmt_end_year - 1
         stmt_start_date = datetime(prev_y, prev_m, cutoff_day) + timedelta(days=1)
 
+        # Save date window for filtered transactions view
+        card_windows[card_name] = (stmt_start_date, stmt_end_date)
         stmt_range_str = f"{stmt_start_date.strftime('%b %d')} – {stmt_end_date.strftime('%b %d')}"
 
-        # 1. Sum Installments split by Owner (Ours vs Tatay/Kuya Jaypard)
+        # 1. Sum Installments split by Owner
         inst_ours = 0.0
         inst_others = 0.0
         
         if not inst_df.empty and "Card" in inst_df.columns:
-            card_insts = inst_df[inst_df["Card"].astype(str).str.strip() == card_name.strip()]
+            card_insts = inst_df[inst_df["Card"].astype(str).str.strip() == card_name]
             for _, row in card_insts.iterrows():
                 m_amt = clean_num(row.get("Monthly_Payment", 0))
                 owner = str(row.get("Owner", "")).strip().lower()
@@ -121,10 +126,10 @@ if page == "💳 Credit Cards":
                 else:
                     inst_ours += m_amt
 
-        # 2. Sum Daily Transactions in Statement Window (All Daily Txs are Ours)
+        # 2. Sum Daily Transactions inside statement window
         tx_sum = 0.0
         if not tx_df.empty and "Card" in tx_df.columns:
-            card_txs = tx_df[tx_df["Card"].astype(str).str.strip() == card_name.strip()].copy()
+            card_txs = tx_df[tx_df["Card"].astype(str).str.strip() == card_name].copy()
             if not card_txs.empty:
                 card_txs["Parsed_Date"] = pd.to_datetime(card_txs["Date"], errors="coerce")
                 in_range_tx = card_txs[
@@ -137,7 +142,6 @@ if page == "💳 Credit Cards":
         card_total_others = inst_others
         total_card_due = card_total_ours + card_total_others
 
-        # Accumulate period totals
         if "15" in pay_period:
             tot_15th_ours += card_total_ours
             tot_15th_others += card_total_others
@@ -151,7 +155,7 @@ if page == "💳 Credit Cards":
             match_pay = payments_df[
                 (payments_df["Month"].astype(str) == str(sel_month)) &
                 (payments_df["Year"].astype(str) == str(sel_year)) &
-                (payments_df["Card"].astype(str).str.strip() == card_name.strip())
+                (payments_df["Card"].astype(str).str.strip() == card_name)
             ]
             if not match_pay.empty:
                 status = match_pay.iloc[0].get("Status", "PAID")
@@ -200,27 +204,48 @@ if page == "💳 Credit Cards":
         if st.button("❌ Close View", use_container_width=True):
             st.session_state.selected_payout = None
 
-    # --- DYNAMIC BREAKDOWN DISPLAY WHEN CLICKED ---
+    # --- DYNAMIC BREAKDOWN DISPLAY WHEN CLICKED (STRICT DATE FILTER) ---
     if st.session_state.selected_payout:
         payout_tag = st.session_state.selected_payout
         st.info(f"📋 **Showing Breakdown for {sel_month_name} {payout_tag} Payout**")
         
-        selected_cards = cards_df[cards_df["Pay Period"].astype(str).str.contains(payout_tag)]["Card Name"].dropna().tolist()
+        # Get cards belonging to this payout
+        payout_cards = cards_df[cards_df["Pay Period"].astype(str).str.contains(payout_tag)]["Card Name"].dropna().str.strip().tolist()
         
         d1, d2 = st.columns(2)
         
         with d1:
             st.markdown(f"##### 🧾 Daily Transactions ({payout_tag} Cards)")
             if not tx_df.empty and "Card" in tx_df.columns:
-                filtered_tx = tx_df[tx_df["Card"].isin(selected_cards)]
-                st.dataframe(filtered_tx, use_container_width=True, hide_index=True)
+                tx_copy = tx_df.copy()
+                tx_copy["Parsed_Date"] = pd.to_datetime(tx_copy["Date"], errors="coerce")
+                
+                # Filter each card by its specific statement start and end date
+                in_period_txs = []
+                for cname in payout_cards:
+                    if cname in card_windows:
+                        s_start, s_end = card_windows[cname]
+                        match_tx = tx_copy[
+                            (tx_copy["Card"].astype(str).str.strip() == cname) &
+                            (tx_copy["Parsed_Date"] >= s_start) &
+                            (tx_copy["Parsed_Date"] <= s_end + timedelta(hours=23, minutes=59))
+                        ]
+                        in_period_txs.append(match_tx)
+                
+                filtered_tx = pd.concat(in_period_txs, ignore_index=True) if in_period_txs else pd.DataFrame()
+                
+                if not filtered_tx.empty:
+                    display_cols = [c for c in ["Date", "Card", "Category", "Amount", "Notes"] if c in filtered_tx.columns]
+                    st.dataframe(filtered_tx[display_cols], use_container_width=True, hide_index=True)
+                else:
+                    st.write("No daily transactions in this statement period.")
             else:
                 st.write("No daily transactions found.")
                 
         with d2:
             st.markdown(f"##### 🔄 Monthly Installments ({payout_tag} Cards)")
             if not inst_df.empty and "Card" in inst_df.columns:
-                filtered_inst = inst_df[inst_df["Card"].isin(selected_cards)]
+                filtered_inst = inst_df[inst_df["Card"].astype(str).str.strip().isin(payout_cards)]
                 st.dataframe(filtered_inst, use_container_width=True, hide_index=True)
             else:
                 st.write("No installments found.")
