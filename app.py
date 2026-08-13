@@ -201,7 +201,7 @@ if page == "💳 Credit Cards":
     tot_15th_grand = tot_15th_tx + tot_15th_inst_ours + tot_15th_inst_others
     tot_30th_grand = tot_30th_tx + tot_30th_inst_ours + tot_30th_inst_others
 
-    # --- CLICKABLE PAYOUT DUES BUTTONS WITH SUB-BREAKDOWNS ---
+    # --- CLICKABLE PAYOUT DUES BUTTONS WITH CLEAN SUB-BREAKDOWNS ---
     st.markdown("#### 🗓️ Payout Dues Summary *(Click to view tables)*")
     
     if "selected_payout" not in st.session_state:
@@ -231,7 +231,7 @@ if page == "💳 Credit Cards":
         if st.button("❌ Close View", use_container_width=True):
             st.session_state.selected_payout = None
 
-    # --- DYNAMIC BREAKDOWN DISPLAY WHEN CLICKED ---
+    # --- DYNAMIC BREAKDOWN DISPLAY WHEN CLICKED (TABLES ONLY) ---
     if st.session_state.selected_payout:
         payout_tag = st.session_state.selected_payout
         st.info(f"📋 **Showing Transaction & Installment Breakdown for {sel_month_name} {payout_tag} Payout**")
@@ -255,19 +255,25 @@ if page == "💳 Credit Cards":
                     in_period_txs.append(match_tx)
             filtered_tx = pd.concat(in_period_txs, ignore_index=True) if in_period_txs else pd.DataFrame()
 
-        # Filter & Annotate Installments with Progress (e.g. 2/6)
+        # Filter & Annotate Installments with Progress (Hiding Completed Items)
         filtered_inst = pd.DataFrame()
         if not inst_df.empty and "Card" in inst_df.columns:
             inst_copy = inst_df[inst_df["Card"].astype(str).str.strip().isin(payout_cards)].copy()
             if not inst_copy.empty:
                 progress_list = []
+                is_active_list = []
                 for _, row in inst_copy.iterrows():
                     s_d = row.get("Start_Date", "")
                     t_tot = int(clean_num(row.get("Tenor", 1)))
-                    _, prog_str = calculate_tenor_progress(s_d, t_tot, sel_month, sel_year)
+                    is_act, prog_str = calculate_tenor_progress(s_d, t_tot, sel_month, sel_year)
                     progress_list.append(prog_str)
+                    is_active_list.append(is_act)
+                    
                 inst_copy["Tenor_Progress"] = progress_list
-                filtered_inst = inst_copy
+                inst_copy["Is_Active"] = is_active_list
+                
+                # Filter to only show active installments
+                filtered_inst = inst_copy[inst_copy["Is_Active"] == True]
 
         d1, d2 = st.columns(2)
         
@@ -285,7 +291,7 @@ if page == "💳 Credit Cards":
                 display_inst_cols = [c for c in ["Owner", "Item", "Card", "Monthly_Payment", "Tenor_Progress", "Start_Date"] if c in filtered_inst.columns]
                 st.dataframe(filtered_inst[display_inst_cols], use_container_width=True, hide_index=True)
             else:
-                st.write("No installments found.")
+                st.write("No active installments found for this period.")
 
     st.divider()
 
