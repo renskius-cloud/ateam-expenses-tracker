@@ -31,7 +31,7 @@ def load_data():
 try:
     cards_df, tx_df, inst_df, daddy_df, payments_df = load_data()
 except Exception as e:
-    st.error(f"⚠️ Error loading data: {e}")
+    st.error(f"⚠️ Error loading data from Google Sheets: {e}")
     st.stop()
 
 # 3. HELPER FUNCTIONS FOR CLEAN NUMBERS & DATES
@@ -86,8 +86,6 @@ if page == "💳 Credit Cards":
         cutoff_day = parse_day(card.get("Billing Period", 1))
 
         # Determine Statement Range Dates for selected Payout Month/Year
-        # e.g., For August 15th Payout -> Statement ends in July
-        # e.g., For August 30th Payout -> Statement ends in August
         if "15" in pay_period:
             stmt_end_month = sel_month - 1 if sel_month > 1 else 12
             stmt_end_year = sel_year if sel_month > 1 else sel_year - 1
@@ -124,7 +122,7 @@ if page == "💳 Credit Cards":
 
         total_card_due = inst_sum + tx_sum
 
-        # Check Payment Status from Payments tab
+        # Check Payment Status
         status = "Unpaid"
         if not payments_df.empty:
             match_pay = payments_df[
@@ -153,13 +151,50 @@ if page == "💳 Credit Cards":
 
     display_dashboard_df = pd.DataFrame(dashboard_rows)
 
-    # --- CLICKABLE METRIC DUES ---
-    st.markdown("#### 🗓️ Payout Dues Summary")
-    c1, c2 = st.columns(2)
+    # --- CLICKABLE PAYOUT DUES BUTTONS ---
+    st.markdown("#### 🗓️ Payout Dues Summary *(Click to view details)*")
+    
+    if "selected_payout" not in st.session_state:
+        st.session_state.selected_payout = None
+
+    c1, c2, c3 = st.columns([2, 2, 1])
     with c1:
-        st.metric(label=f"🗓️ Due for {sel_month_name} 15th", value=f"₱{tot_15th:,.2f}")
+        if st.button(f"🗓️ Due for {sel_month_name} 15th: ₱{tot_15th:,.2f}", type="primary" if st.session_state.selected_payout == "15th" else "secondary", use_container_width=True):
+            st.session_state.selected_payout = "15th" if st.session_state.selected_payout != "15th" else None
+
     with c2:
-        st.metric(label=f"🗓️ Due for {sel_month_name} 30th", value=f"₱{tot_30th:,.2f}")
+        if st.button(f"🗓️ Due for {sel_month_name} 30th: ₱{tot_30th:,.2f}", type="primary" if st.session_state.selected_payout == "30th" else "secondary", use_container_width=True):
+            st.session_state.selected_payout = "30th" if st.session_state.selected_payout != "30th" else None
+
+    with c3:
+        if st.button("❌ Close View", use_container_width=True):
+            st.session_state.selected_payout = None
+
+    # --- DYNAMIC BREAKDOWN DISPLAY WHEN CLICKED ---
+    if st.session_state.selected_payout:
+        payout_tag = st.session_state.selected_payout
+        st.info(f"📋 **Showing Breakdown for {sel_month_name} {payout_tag} Payout**")
+        
+        # Filter cards for selected payout
+        selected_cards = cards_df[cards_df["Pay Period"].astype(str).str.contains(payout_tag)]["Card Name"].dropna().tolist()
+        
+        d1, d2 = st.columns(2)
+        
+        with d1:
+            st.markdown(f"##### 🧾 Daily Transactions ({payout_tag} Cards)")
+            if not tx_df.empty and "Card" in tx_df.columns:
+                filtered_tx = tx_df[tx_df["Card"].isin(selected_cards)]
+                st.dataframe(filtered_tx, use_container_width=True, hide_index=True)
+            else:
+                st.write("No daily transactions found.")
+                
+        with d2:
+            st.markdown(f"##### 🔄 Monthly Installments ({payout_tag} Cards)")
+            if not inst_df.empty and "Card" in inst_df.columns:
+                filtered_inst = inst_df[inst_df["Card"].isin(selected_cards)]
+                st.dataframe(filtered_inst, use_container_width=True, hide_index=True)
+            else:
+                st.write("No installments found.")
 
     st.divider()
 
