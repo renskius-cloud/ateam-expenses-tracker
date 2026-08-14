@@ -254,14 +254,14 @@ def calculate_tenor_progress(start_date_str, tenor_total, sel_month, sel_year):
 
 # 4. SIDEBAR NAVIGATION
 st.sidebar.title("📌 Navigation")
-page = st.sidebar.radio("Go to", ["💳 Credit Cards", "📜 Daddy List"])
+page = st.sidebar.radio("Go to", ["💳 A-Team CC", "📜 Daddy List"])
 
 
 # ==========================================
 # PAGE 1: CREDIT CARDS
 # ==========================================
 if page == "💳 Credit Cards":
-    st.title("💳 Credit Cards Tracker")
+    st.title("💳 A-Team CC Tracker")
 
     # --- Billing Period Selection ---
     col_m, col_y = st.columns(2)
