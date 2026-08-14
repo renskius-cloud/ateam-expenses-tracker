@@ -26,7 +26,7 @@ st.markdown(f"""
 
     /* 2. Global Text Color Override - Sharp Navy/Black */
     .stApp, .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6, .stApp td, .stApp th {{
-        color: #0F172A !important;
+        color: #000000 !important;
     }}
 
     /* 3. Frosted White Sidebar */
