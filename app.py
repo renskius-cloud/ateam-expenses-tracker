@@ -50,6 +50,13 @@ st.markdown(f"""
         padding: 12px !important;
     }}
 
+    /* Expander Header Light Styling (Fixes Black Header Bar) */
+    div[data-testid="stExpander"] details summary {{
+        background-color: rgba(255, 255, 255, 0.9) !important;
+        color: #0F172A !important;
+        border-radius: 8px !important;
+    }}
+
     /* 5. Custom Light Frosted Glass HTML Table Styling */
     .glass-table {{
         width: 100%;
@@ -85,7 +92,7 @@ st.markdown(f"""
         background-color: rgba(255, 255, 255, 0.5) !important;
     }}
 
-    /* 6. STREAMLIT TABS FROSTED GLASS BAR & VISIBLE LABELS */
+    /* 6. STREAMLIT TABS FROSTED GLASS BAR */
     div[data-baseweb="tab-list"] {{
         background-color: rgba(255, 255, 255, 0.85) !important;
         backdrop-filter: blur(12px) !important;
@@ -185,7 +192,7 @@ except Exception as e:
     st.error(f"⚠️ Error loading data from Google Sheets: {e}")
     st.stop()
 
-# 3. HELPER FUNCTIONS FOR CLEAN NUMBERS & DATES
+# 3. HELPER FUNCTIONS FOR CLEAN NUMBERS, DATES & STRINGS
 def clean_num(val):
     if pd.isna(val):
         return 0.0
@@ -199,6 +206,15 @@ def fmt_peso(val):
     """Formats any number into ₱1,234.56 string format."""
     num = clean_num(val)
     return f"₱{num:,.2f}"
+
+def clean_int_str(val):
+    """Normalizes '8.0', '8', 8, or ' 8 ' into clean string '8'."""
+    if pd.isna(val):
+        return ""
+    try:
+        return str(int(float(val)))
+    except:
+        return str(val).strip()
 
 def render_glass_table(df):
     """Renders a pandas DataFrame as a pure HTML white frosted glass table."""
@@ -337,21 +353,24 @@ if page == "💳 Credit Cards":
             tot_30th_inst_ours += inst_ours
             tot_30th_inst_others += inst_others
 
-        # Check Payment Status (Robust Matching)
+        # Check Payment Status (With Clean Normalized Integers)
         status = "Unpaid"
         if not payments_df.empty and "Card" in payments_df.columns:
             pay_copy = payments_df.copy()
             pay_copy["Card_Clean"] = pay_copy["Card"].astype(str).str.strip()
-            pay_copy["Month_Clean"] = pay_copy["Month"].astype(str).str.strip()
-            pay_copy["Year_Clean"] = pay_copy["Year"].astype(str).str.strip()
+            pay_copy["Month_Clean"] = pay_copy["Month"].apply(clean_int_str)
+            pay_copy["Year_Clean"] = pay_copy["Year"].apply(clean_int_str)
+
+            target_m = clean_int_str(sel_month)
+            target_y = clean_int_str(sel_year)
 
             match_pay = pay_copy[
-                (pay_copy["Month_Clean"] == str(sel_month)) &
-                (pay_copy["Year_Clean"] == str(sel_year)) &
+                (pay_copy["Month_Clean"] == target_m) &
+                (pay_copy["Year_Clean"] == target_y) &
                 (pay_copy["Card_Clean"] == card_name)
             ]
             if not match_pay.empty:
-                status = match_pay.iloc[-1].get("Status", "PAID")
+                status = str(match_pay.iloc[-1].get("Status", "PAID")).strip()
 
         if total_card_due == 0:
             status = "No Due"
@@ -482,9 +501,9 @@ if page == "💳 Credit Cards":
         
         if p_col2.button("Mark as PAID", type="primary", use_container_width=True):
             new_payment = pd.DataFrame([{
-                "Month": str(sel_month),
-                "Year": str(sel_year),
-                "Card": card_to_pay,
+                "Month": clean_int_str(sel_month),
+                "Year": clean_int_str(sel_year),
+                "Card": str(card_to_pay).strip(),
                 "Status": "PAID",
                 "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }])
@@ -496,9 +515,9 @@ if page == "💳 Credit Cards":
 
         if p_col3.button("Mark as UNPAID", use_container_width=True):
             new_payment = pd.DataFrame([{
-                "Month": str(sel_month),
-                "Year": str(sel_year),
-                "Card": card_to_pay,
+                "Month": clean_int_str(sel_month),
+                "Year": clean_int_str(sel_year),
+                "Card": str(card_to_pay).strip(),
                 "Status": "Unpaid",
                 "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }])
