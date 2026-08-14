@@ -85,7 +85,7 @@ st.markdown(f"""
         background-color: rgba(255, 255, 255, 0.5) !important;
     }}
 
-    /* 6. FIX: STREAMLIT TABS FROSTED GLASS BAR & VISIBLE LABELS */
+    /* 6. STREAMLIT TABS FROSTED GLASS BAR & VISIBLE LABELS */
     div[data-baseweb="tab-list"] {{
         background-color: rgba(255, 255, 255, 0.85) !important;
         backdrop-filter: blur(12px) !important;
@@ -337,16 +337,21 @@ if page == "💳 Credit Cards":
             tot_30th_inst_ours += inst_ours
             tot_30th_inst_others += inst_others
 
-        # Check Payment Status
+        # Check Payment Status (Robust Matching)
         status = "Unpaid"
-        if not payments_df.empty:
-            match_pay = payments_df[
-                (payments_df["Month"].astype(str) == str(sel_month)) &
-                (payments_df["Year"].astype(str) == str(sel_year)) &
-                (payments_df["Card"].astype(str).str.strip() == card_name)
+        if not payments_df.empty and "Card" in payments_df.columns:
+            pay_copy = payments_df.copy()
+            pay_copy["Card_Clean"] = pay_copy["Card"].astype(str).str.strip()
+            pay_copy["Month_Clean"] = pay_copy["Month"].astype(str).str.strip()
+            pay_copy["Year_Clean"] = pay_copy["Year"].astype(str).str.strip()
+
+            match_pay = pay_copy[
+                (pay_copy["Month_Clean"] == str(sel_month)) &
+                (pay_copy["Year_Clean"] == str(sel_year)) &
+                (pay_copy["Card_Clean"] == card_name)
             ]
             if not match_pay.empty:
-                status = match_pay.iloc[0].get("Status", "PAID")
+                status = match_pay.iloc[-1].get("Status", "PAID")
 
         if total_card_due == 0:
             status = "No Due"
@@ -378,7 +383,7 @@ if page == "💳 Credit Cards":
             
         sub_a, sub_b, sub_c = st.columns(3)
         sub_a.caption(f"🧾 **Daily:** {fmt_peso(tot_15th_tx)}")
-        sub_b.caption(f"🏠 **A-Team Inst:** {fmt_peso(tot_15th_inst_ours)}")
+        sub_b.caption(f"🏠 **Ours Inst:** {fmt_peso(tot_15th_inst_ours)}")
         sub_c.caption(f"🤝 **Tatay/Kuya:** {fmt_peso(tot_15th_inst_others)}")
 
     with c2:
@@ -387,7 +392,7 @@ if page == "💳 Credit Cards":
             
         sub_d, sub_e, sub_f = st.columns(3)
         sub_d.caption(f"🧾 **Daily:** {fmt_peso(tot_30th_tx)}")
-        sub_e.caption(f"🏠 **A-Team:** {fmt_peso(tot_30th_inst_ours)}")
+        sub_e.caption(f"🏠 **Ours Inst:** {fmt_peso(tot_30th_inst_ours)}")
         sub_f.caption(f"🤝 **Tatay/Kuya:** {fmt_peso(tot_30th_inst_others)}")
 
     with c3:
@@ -470,10 +475,11 @@ if page == "💳 Credit Cards":
     st.markdown("### 📊 Credit Card Dashboard & Status")
     render_glass_table(display_dashboard_df)
 
-    # --- MARK AS PAID SECTION ---
-    with st.expander("✅ Mark Card Payment Status"):
-        p_col1, p_col2 = st.columns([3, 1])
-        card_to_pay = p_col1.selectbox("Select Card to Mark as Paid", cards_df["Card Name"].dropna().tolist())
+    # --- MARK AS PAID / UNPAID SECTION ---
+    with st.expander("✅ Update Card Payment Status"):
+        p_col1, p_col2, p_col3 = st.columns([2, 1, 1])
+        card_to_pay = p_col1.selectbox("Select Card", cards_df["Card Name"].dropna().tolist())
+        
         if p_col2.button("Mark as PAID", type="primary", use_container_width=True):
             new_payment = pd.DataFrame([{
                 "Month": str(sel_month),
@@ -485,6 +491,20 @@ if page == "💳 Credit Cards":
             updated_payments = pd.concat([payments_df, new_payment], ignore_index=True)
             conn.update(worksheet="Payments", data=updated_payments)
             st.success(f"Marked {card_to_pay} as PAID for {sel_month_name} {sel_year}!")
+            st.cache_data.clear()
+            st.rerun()
+
+        if p_col3.button("Mark as UNPAID", use_container_width=True):
+            new_payment = pd.DataFrame([{
+                "Month": str(sel_month),
+                "Year": str(sel_year),
+                "Card": card_to_pay,
+                "Status": "Unpaid",
+                "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }])
+            updated_payments = pd.concat([payments_df, new_payment], ignore_index=True)
+            conn.update(worksheet="Payments", data=updated_payments)
+            st.success(f"Marked {card_to_pay} as UNPAID for {sel_month_name} {sel_year}!")
             st.cache_data.clear()
             st.rerun()
 
