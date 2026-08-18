@@ -26,7 +26,7 @@ st.markdown(f"""
 
     /* 2. Global Text Color Override - Sharp Navy/Black */
     .stApp, .stApp p, .stApp span, .stApp label, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5, .stApp h6, .stApp td, .stApp th {{
-        color: #000000 !important;
+        color: #0F172A !important;
     }}
 
     /* 3. Frosted White Sidebar */
@@ -50,7 +50,7 @@ st.markdown(f"""
         padding: 12px !important;
     }}
 
-    /* Expander Header Light Styling (Fixes Black Header Bar) */
+    /* Expander Header Light Styling */
     div[data-testid="stExpander"] details summary {{
         background-color: rgba(255, 255, 255, 0.9) !important;
         color: #0F172A !important;
@@ -148,14 +148,14 @@ st.markdown(f"""
         border: none !important;
     }}
 
-    /* 8. Sub-caption Texts under Buttons (Bold & Dark) */
+    /* 8. Sub-caption Texts under Buttons (White with Shadow for high contrast) */
     div[data-testid="stCaptionContainer"] p, 
     div[data-testid="stCaptionContainer"] span,
     .stCaption {{
-        color: #000000 !important;
+        color: #FFFFFF !important;
         font-weight: 800 !important;
-        font-size: 0.92rem !important;
-        text-shadow: 0px 0px 6px rgba(255, 255, 255, 0.9) !important;
+        font-size: 0.95rem !important;
+        text-shadow: 0px 1px 4px rgba(0, 0, 0, 0.8) !important;
     }}
 
     /* 9. Input Fields & Dropdowns */
@@ -203,12 +203,13 @@ def clean_num(val):
         return 0.0
 
 def fmt_peso(val):
-    """Formats any number into ₱1,234.56 string format."""
+    """Formats any number into ₱1,234.56 or -₱500.00 string format."""
     num = clean_num(val)
+    if num < 0:
+        return f"-₱{abs(num):,.2f}"
     return f"₱{num:,.2f}"
 
 def clean_int_str(val):
-    """Normalizes '8.0', '8', 8, or ' 8 ' into clean string '8'."""
     if pd.isna(val):
         return ""
     try:
@@ -261,7 +262,7 @@ page = st.sidebar.radio("Go to", ["💳 Credit Cards", "📜 Daddy List"])
 # PAGE 1: CREDIT CARDS
 # ==========================================
 if page == "💳 Credit Cards":
-    st.title("💳 A-Team CC Tracker")
+    st.title("💳 Credit Cards Tracker")
 
     # --- Billing Period Selection ---
     col_m, col_y = st.columns(2)
@@ -353,7 +354,7 @@ if page == "💳 Credit Cards":
             tot_30th_inst_ours += inst_ours
             tot_30th_inst_others += inst_others
 
-        # Check Payment Status (With Clean Normalized Integers)
+        # Check Payment Status
         status = "Unpaid"
         if not payments_df.empty and "Card" in payments_df.columns:
             pay_copy = payments_df.copy()
@@ -541,7 +542,7 @@ if page == "💳 Credit Cards":
             d_card = f2.selectbox("Card", card_opts)
             f3, f4 = st.columns(2)
             d_cat = f3.selectbox("Category", ["Dining & Food", "Groceries", "Utilities & Bills", "Health & Medical", "Gas & Travel", "Shopping & Clothes", "Miscellaneous"])
-            d_amt = f4.number_input("Amount (PHP)", min_value=0.0, step=50.0)
+            d_amt = f4.number_input("Amount (PHP)", step=50.0)
             d_notes = st.text_input("Notes")
 
             if st.form_submit_button("Save Expense", type="primary", use_container_width=True):
@@ -614,7 +615,8 @@ elif page == "📜 Daddy List":
     with st.form("form_daddy_entry", clear_on_submit=True):
         c1, c2 = st.columns(2)
         d_date = c1.date_input("Date")
-        d_amt = c2.number_input("Amount (PHP)", min_value=0.0, step=50.0)
+        # ALLOW NEGATIVE AMOUNTS FOR PARTIAL PAYMENTS
+        d_amt = c2.number_input("Amount (PHP)", step=50.0, help="Enter a negative amount (e.g. -500) for payments/reductions")
         d_item = st.text_input("Item Description / Expense")
         d_notes = st.text_input("Notes (Optional)")
 
